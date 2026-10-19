@@ -125,7 +125,58 @@ LuaCatalog.Remove("440",new[]{primary,active},Path.Combine(testRoot,"backup"));
 Check(!File.Exists(Path.Combine(primary,"440.lua"))&&!File.Exists(Path.Combine(active,"440.lua")),"Lua removal deletes both configured copies");
 Check(File.Exists(Path.Combine(depot,"441_123.manifest")),"Lua removal preserves depot manifests");
 Check(Directory.EnumerateDirectories(Path.Combine(testRoot,"backup"),"removed-440-*").Any(),"Lua removal preserves recovery backup");
+// Lua loader: stock Steam has none, a tampered archive never reaches the Steam folder, foreign DLLs are kept.
+var loaderSteam=Path.Combine(testRoot,"loader-steam");Directory.CreateDirectory(loaderSteam);File.WriteAllText(Path.Combine(loaderSteam,"steam.exe"),"");
+Check(LuaLoader.Find(loaderSteam)==null&&LuaLoader.Find("")==null,"stock Steam has no Lua loader");
+string LoaderZip(string name,char fill)=>Zip(name,LuaLoader.Files.Select(f=>(f,Text("MZ"+new string(fill,100)))).ToArray());
+string Sha(string path)=>Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
+Reject(()=>LuaLoader.Install(LoaderZip("fake-loader",'x'),loaderSteam,Path.Combine(testRoot,"unused-state.json")),"loader archive with wrong checksum rejected");
+// Upgrade only what FST installed and nobody changed since.
+var upgradeSteam=Path.Combine(testRoot,"upgrade-steam");Directory.CreateDirectory(upgradeSteam);File.WriteAllText(Path.Combine(upgradeSteam,"steam.exe"),"");
+var upgradeState=Path.Combine(testRoot,"upgrade-state.json");
+var v1=LoaderZip("loader-v1",'a');Check(LuaLoader.Install(v1,upgradeSteam,upgradeState,Sha(v1),"1.0").Length==3,"loader installed into clean Steam");
+Check(LuaLoader.NeedsInstall(upgradeSteam,upgradeState),"older FST-installed loader scheduled for upgrade");
+var v2=LoaderZip("loader-v2",'b');Check(LuaLoader.Install(v2,upgradeSteam,upgradeState,Sha(v2),"2.0").Length==3&&File.ReadAllText(Path.Combine(upgradeSteam,"OpenSteamTool.dll")).EndsWith("b"),"FST-installed loader upgraded");
+Check(!Directory.EnumerateFiles(upgradeSteam,"*.fst-*").Any(),"upgrade leaves no replaced or temporary files");
+Check(LuaLoader.Install(v2,upgradeSteam,upgradeState,Sha(v2),"2.0").Length==0,"same loader version is not reinstalled");
+File.WriteAllText(Path.Combine(upgradeSteam,"dwmapi.dll"),"MZ user build");
+var v3=LoaderZip("loader-v3",'c');var upgraded=LuaLoader.Install(v3,upgradeSteam,upgradeState,Sha(v3),"3.0");
+Check(upgraded.Length==2&&File.ReadAllText(Path.Combine(upgradeSteam,"dwmapi.dll"))=="MZ user build","loader file changed by the user is never replaced");
+File.Delete(Path.Combine(upgradeSteam,"OpenSteamTool.dll"));
+Check(LuaLoader.NeedsInstall(upgradeSteam,upgradeState),"missing FST-installed loader file detected despite remaining proxies");
+Check(LuaLoader.Install(v3,upgradeSteam,upgradeState,Sha(v3),"3.0").SequenceEqual([Path.Combine(upgradeSteam,"OpenSteamTool.dll")])&&File.ReadAllText(upgradeState).Contains("OpenSteamTool.dll"),"missing loader file restored");
+var foreignSteam=Path.Combine(testRoot,"foreign-steam");Directory.CreateDirectory(foreignSteam);File.WriteAllText(Path.Combine(foreignSteam,"steam.exe"),"");File.WriteAllText(Path.Combine(foreignSteam,"xinput1_4.dll"),"MZ other loader");
+Check(!LuaLoader.NeedsInstall(foreignSteam,Path.Combine(testRoot,"foreign-state.json")),"another loader is used as is");
+LuaLoader.Install(v1,foreignSteam,Path.Combine(testRoot,"foreign-state.json"),Sha(v1),"1.0");
+Check(File.ReadAllText(Path.Combine(foreignSteam,"xinput1_4.dll"))=="MZ other loader","foreign loader DLL preserved");
+// Signature tracker: 404 means the Steam build is not supported yet; network errors are not reported.
+var trackerSteam=Path.Combine(testRoot,"tracker-steam");Directory.CreateDirectory(trackerSteam);
+foreach(var f in new[]{"OpenSteamTool.dll","steamclient64.dll","steamui.dll"})File.WriteAllText(Path.Combine(trackerSteam,f),f);
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("/steamclient/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).SequenceEqual(["steamclient64.dll"]),"unsupported Steam build detected");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(_=>throw new HttpRequestException("offline"))))).Length==0,"offline tracker is not reported as unsupported");
+var cachedPattern=Path.Combine(trackerSteam,"opensteamtool","pattern","steamclient",Sha(Path.Combine(trackerSteam,"steamclient64.dll")).ToLowerInvariant()+".toml");Directory.CreateDirectory(Path.GetDirectoryName(cachedPattern)!);File.WriteAllText(cachedPattern,"");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("/steamclient/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).Length==0,"cached signatures count as supported");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(loaderSteam)).Length==0,"tracker is not queried without OpenSteamTool");
+var loaderState=Path.Combine(testRoot,"loader-state.json");
+try{await LuaLoader.DownloadAndInstallAsync(loaderSteam,Path.Combine(testRoot,"loader-temp"),loaderState,new HttpClient(new FakeHandler(request=>
+{
+    Check(request.RequestUri!.ToString()==LuaLoader.ArchiveUrl,"loader downloaded from pinned release");
+    return new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("<html>login</html>")};
+})));throw new Exception("Expected loader checksum failure");}
+catch(InvalidDataException){Check(LuaLoader.Markers.All(m=>!File.Exists(Path.Combine(loaderSteam,m))),"failed loader download writes nothing into Steam");}
+Check(!Directory.EnumerateFiles(Path.Combine(testRoot,"loader-temp")).Any(),"loader download leaves no temporary archive");
+try{await LuaLoader.DownloadAndInstallAsync(Path.Combine(testRoot,"no-steam"),Path.Combine(testRoot,"loader-temp"),loaderState,new HttpClient(new FakeHandler(_=>throw new Exception("Must not download without Steam"))));throw new Exception("Expected missing Steam");}
+catch(FileNotFoundException){Check(true,"loader is not downloaded without steam.exe");}
+var otherLoader=Path.Combine(testRoot,"other-loader");Directory.CreateDirectory(otherLoader);File.WriteAllText(Path.Combine(otherLoader,"xinput1_4.dll"),"");
+Check(LuaLoader.Find(otherLoader)=="xinput1_4.dll","existing proxy loader detected");
+if(args.Contains("--live"))
+{
+    var liveFiles=await LuaLoader.DownloadAndInstallAsync(loaderSteam,Path.Combine(testRoot,"loader-temp"),loaderState);
+    Check(liveFiles.Length==3&&LuaLoader.Find(loaderSteam)=="OpenSteamTool.dll","OpenSteamTool release verified and installed in sandbox");
+    Check((await LuaLoader.DownloadAndInstallAsync(loaderSteam,Path.Combine(testRoot,"loader-temp"),loaderState)).Length==0&&!LuaLoader.NeedsInstall(loaderSteam,loaderState),"current loader is not reinstalled");
+}
 Localization.Language="en";
+Check(Localization.T(LuaLoader.MissingMessage).StartsWith("No Lua loader"),"missing loader message translated");
 Check(Localization.T("Подключить Ryuu")=="Connect Ryuu","English UI translation");
 Check(Localization.F("Удалено Lua: {0}",2)=="Lua scripts removed: 2","English structured log translation");
 Localization.Language="ru";

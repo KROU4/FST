@@ -21,6 +21,10 @@ internal static class Program
             {
                 if(File.Exists(Path.Combine(settings.SteamRoot,"steam.exe")))SteamControl.EnsureDebugMarker(settings);
                 Startup.Set(!args.Contains("--no-startup"));
+                // The setup waits 90 s for this process and the Steam restart may take 45 s, so the loader gets 20 s; the tray retries on start.
+                if(File.Exists(Path.Combine(settings.SteamRoot,"steam.exe")))
+                    try{using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(20));JobService.EnsureLoaderAsync(settings,budget.Token).GetAwaiter().GetResult();}
+                    catch(Exception e){JobService.Log("Не удалось установить OpenSteamTool: {0}",e.Message);}
                 if(args.Contains("--restart-steam")&&File.Exists(Path.Combine(settings.SteamRoot,"steam.exe")))SteamControl.RestartAsync(settings).GetAwaiter().GetResult();
                 return;
             }
@@ -94,7 +98,7 @@ internal static class Program
             {
                 var session = new RyuuSession();
                 if (args.Contains("--verify-ryuu")) session.VerifyAsync().GetAwaiter().GetResult();
-                var status = new { settings.SteamRoot, settings.LuaDirectory, settings.DepotDirectory, additionalLuaDirectories = settings.ActiveLuaDirectories(), steamExists = File.Exists(Path.Combine(settings.SteamRoot, "steam.exe")), source = "ryuu", hasSavedConnection = !string.IsNullOrEmpty(SecretStore.Read()), ryuuStatus = session.Status, settings.AutoUpdate, settings.MirrorManifests, settings.RestartAfterInstall };
+                var status = new { settings.SteamRoot, settings.LuaDirectory, settings.DepotDirectory, additionalLuaDirectories = settings.ActiveLuaDirectories(), steamExists = File.Exists(Path.Combine(settings.SteamRoot, "steam.exe")), luaLoader = LuaLoader.Find(settings.SteamRoot), source = "ryuu", hasSavedConnection = !string.IsNullOrEmpty(SecretStore.Read()), ryuuStatus = session.Status, settings.AutoUpdate, settings.MirrorManifests, settings.RestartAfterInstall };
                 File.WriteAllText(Path.Combine(Settings.DataRoot, "diagnostics.json"), JsonSerializer.Serialize(status, new JsonSerializerOptions { WriteIndented = true }));
                 return;
             }
@@ -171,6 +175,15 @@ internal sealed class TrayContext : ApplicationContext
         }
         _ = Task.Run(async () => { try { await session.MaintainAsync(cancellation.Token); } catch (OperationCanceledException) { } catch { JobService.Log("Проверка подключения Ryuu остановлена."); } });
         JobService.Log("FST запущен. Источник: Ryuu. Подключение хранится в хранилище Windows.");
+        if (File.Exists(Path.Combine(settings.SteamRoot, "steam.exe")))
+            _ = Task.Run(async () =>
+            {
+                try { if (await JobService.EnsureLoaderAsync(settings, cancellation.Token)) Notify(L.T("OpenSteamTool установлен. Перезапустите Steam, чтобы добавленные игры появились в библиотеке.")); }
+                catch (OperationCanceledException) { return; }
+                catch (Exception e) { JobService.Log("Не удалось установить OpenSteamTool: {0}", e.Message); if (LuaLoader.Find(settings.SteamRoot) == null) JobService.Log(LuaLoader.MissingMessage); }
+                try { if (await JobService.UnsupportedSteamWarningAsync(settings, cancellation.Token) is { } warning) Notify(warning); }
+                catch (OperationCanceledException) { }
+            });
         if(showWindow)ShowSettings();
     }
     private void ShowSettings()

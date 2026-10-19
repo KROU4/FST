@@ -11,11 +11,13 @@ FST is a Windows/Linux tray app that adds an **Add to library for free** button 
 - Linux per-user installer: **fst-0.1.0-linux-x86_64.tar.gz**.
 - PKGBUILD and SHA256SUMS.txt are included in the release.
 
-The .NET runtime is bundled. Game files, manifests, account credentials and Steam loader binaries are not included.
+The .NET runtime is bundled. Game files, manifests, account credentials and Steam loader binaries are not included; on Windows OpenSteamTool is downloaded on demand.
 
 ## Windows installation
 
-Requires Windows 10/11 x64, Steam and an existing compatible Lua loader, such as [OpenSteamTool](https://github.com/OpenSteam001/OpenSteamTool). FST does not install the loader.
+Requires Windows 10/11 x64 and Steam. Without a Lua loader Steam ignores `config\lua` and added games never show up in the library. If no loader is present (no `OpenSteamTool.dll`, `xinput1_4.dll`, `dwmapi.dll` or `hid.dll` next to `steam.exe`), FST downloads [OpenSteamTool](https://github.com/OpenSteam001/OpenSteamTool) 1.4.8 from the official release during setup, at startup and before adding a game, verifies the archive SHA-256 and places `dwmapi.dll`, `xinput1_4.dll` and `OpenSteamTool.dll` in the Steam folder. Foreign files are never overwritten; an already installed loader is used as is. An OpenSteamTool copy installed by FST is upgraded when a newer FST ships a newer loader; DLLs changed by hand are left alone.
+
+OpenSteamTool relies on signatures published separately for every Steam build. Right after a Steam update they may be missing for a few days: Steam then shows OpenSteamTool error dialogs and added games stay hidden. FST checks this at startup and after adding a game and warns in a notification; the Lua files stay in place and the games appear once OpenSteamTool is updated.
 
 1. Run FST-Setup.exe.
 2. Choose whether to start FST with Windows and click Install.
