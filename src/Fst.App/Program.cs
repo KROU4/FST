@@ -179,10 +179,10 @@ internal sealed class TrayContext : ApplicationContext
             _ = Task.Run(async () =>
             {
                 try { if (await JobService.EnsureLoaderAsync(settings, cancellation.Token)) Notify(L.T("OpenSteamTool установлен. Перезапустите Steam, чтобы добавленные игры появились в библиотеке.")); }
-                catch (OperationCanceledException) { return; }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return; }
                 catch (Exception e) { JobService.Log("Не удалось установить OpenSteamTool: {0}", e.Message); if (LuaLoader.Find(settings.SteamRoot) == null) JobService.Log(LuaLoader.MissingMessage); }
                 try { if (await JobService.UnsupportedSteamWarningAsync(settings, cancellation.Token) is { } warning) Notify(warning); }
-                catch (OperationCanceledException) { }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
             });
         if(showWindow)ShowSettings();
     }

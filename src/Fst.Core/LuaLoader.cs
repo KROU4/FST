@@ -33,6 +33,8 @@ public static class LuaLoader
         if (Find(steamRoot) == null) return true;
         var state = ReadState(stateFile);
         if (state == null) return false;
+        // Any loader file FST does not own means another loader is installed: use it as is.
+        if (Markers.Any(m => File.Exists(Path.Combine(steamRoot, m)) && !Owned(state, Path.Combine(steamRoot, m)))) return false;
         // A file FST installed has disappeared (for example, quarantined): proxies alone do not load Lua.
         if (state.Files.Keys.Any(f => !File.Exists(Path.Combine(steamRoot, f)))) return true;
         return state.Version != Version && Files.Any(f => Owned(state, Path.Combine(steamRoot, f)));
