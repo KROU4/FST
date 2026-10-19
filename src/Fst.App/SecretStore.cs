@@ -34,16 +34,21 @@ public static class SecretStore
         if (!ReadCredential(Target, 1, 0, out var pointer))
         {
             var error = Marshal.GetLastWin32Error();
-            if (error == 1168) return "";
+            if (error == 1168)
+                return "";
             throw new Win32Exception(error, "Не удалось прочитать сохранённое подключение Ryuu.");
         }
         try
         {
             var credential = Marshal.PtrToStructure<Credential>(pointer);
-            if (credential.CredentialBlobSize > 5120) throw new InvalidDataException("Некорректный размер ключа Ryuu.");
+            if (credential.CredentialBlobSize > 5120)
+                throw new InvalidDataException("Некорректный размер ключа Ryuu.");
             var bytes = new byte[credential.CredentialBlobSize];
             Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
-            try { return Encoding.UTF8.GetString(bytes); }
+            try
+            {
+                return Encoding.UTF8.GetString(bytes);
+            }
             finally { System.Security.Cryptography.CryptographicOperations.ZeroMemory(bytes); }
         }
         finally { CredFree(pointer); }
@@ -51,13 +56,15 @@ public static class SecretStore
     public static void Write(string secret)
     {
         var bytes = Encoding.UTF8.GetBytes(secret);
-        if (bytes.Length > 5120) throw new ArgumentException("Слишком длинный ключ Ryuu.");
+        if (bytes.Length > 5120)
+            throw new ArgumentException("Слишком длинный ключ Ryuu.");
         var pointer = Marshal.AllocHGlobal(bytes.Length);
         try
         {
             Marshal.Copy(bytes, 0, pointer, bytes.Length);
             var credential = new Credential { Type = 1, TargetName = Target, CredentialBlobSize = (uint)bytes.Length, CredentialBlob = pointer, Persist = 2, UserName = Environment.UserName };
-            if (!WriteCredential(ref credential, 0)) throw new Win32Exception(Marshal.GetLastWin32Error(), "Не удалось сохранить подключение Ryuu.");
+            if (!WriteCredential(ref credential, 0))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Не удалось сохранить подключение Ryuu.");
         }
         finally
         {
@@ -68,6 +75,7 @@ public static class SecretStore
     }
     public static void Delete()
     {
-        if (!DeleteCredential(Target, 1, 0) && Marshal.GetLastWin32Error() != 1168) throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (!DeleteCredential(Target, 1, 0) && Marshal.GetLastWin32Error() != 1168)
+            throw new Win32Exception(Marshal.GetLastWin32Error());
     }
 }

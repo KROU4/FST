@@ -10,15 +10,20 @@ public sealed class RyuuSession
     private string? rejectedKey;
     public bool Connected => !string.IsNullOrWhiteSpace(key) && key != rejectedKey;
     public string Username { get; private set; } = "";
-    private string status="Ryuu не подключён";
-    public string Status { get=>L.T(status); private set=>status=value; }
-    public RyuuSession(bool loadSaved=true) => key = loadSaved?SecretStore.Read():"";
+    private string status = "Ryuu не подключён";
+    public string Status
+    {
+        get => L.T(status); private set => status = value;
+    }
+    public RyuuSession(bool loadSaved = true) => key = loadSaved ? SecretStore.Read() : "";
     public string RequireKey() => Connected ? key : throw new RyuuAuthException();
     public void Reject(string usedKey)
     {
         // A failed old download must not invalidate a newer login.
-        if (key != usedKey) return;
-        rejectedKey = usedKey; Status = "Ryuu: подключитесь повторно";
+        if (key != usedKey)
+            return;
+        rejectedKey = usedKey;
+        Status = "Ryuu: подключитесь повторно";
     }
     public async Task ConnectAsync(string code, CancellationToken ct = default)
     {
@@ -28,7 +33,9 @@ public sealed class RyuuSession
             using var client = new RyuuClient();
             var login = await client.LoginAsync(code, ct);
             SecretStore.Write(login.AuthKey);
-            key = login.AuthKey; rejectedKey = null; Username = login.Identity.Username;
+            key = login.AuthKey;
+            rejectedKey = null;
+            Username = login.Identity.Username;
             Status = "Ryuu: " + Username + (login.Identity.Premium ? " · Premium" : "");
             JobService.Log("Ryuu успешно подключён.");
         }
@@ -36,27 +43,39 @@ public sealed class RyuuSession
     }
     public async Task<bool> TryImportAsync(string path, CancellationToken ct = default)
     {
-        if (Connected || !File.Exists(path)) return Connected;
+        if (Connected || !File.Exists(path))
+            return Connected;
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(path, ct));
-        if (!json.RootElement.TryGetProperty("auth_key", out var token) || string.IsNullOrWhiteSpace(token.GetString())) return false;
+        if (!json.RootElement.TryGetProperty("auth_key", out var token) || string.IsNullOrWhiteSpace(token.GetString()))
+            return false;
         await ConnectAsync(token.GetString()!, ct);
         return true;
     }
     public async Task<bool> DiscoverAsync(bool searchLocal = true, CancellationToken ct = default)
     {
-        if (Connected) { await VerifyAsync(ct); if (Connected) return true; }
+        if (Connected)
+        {
+            await VerifyAsync(ct);
+            if (Connected)
+                return true;
+        }
         if (searchLocal)
         {
             var paths = new[] { Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "RyuuManifestTool", "config.json")), Path.Combine(AppContext.BaseDirectory, "RyuuManifestTool", "config.json") };
             foreach (var path in paths)
             {
-                try { if (await TryImportAsync(path, ct)) return true; }
+                try
+                {
+                    if (await TryImportAsync(path, ct))
+                        return true;
+                }
                 catch (Exception e) when (e is RyuuAuthException or JsonException or IOException) { }
             }
         }
         using var client = new RyuuClient();
         var foundKey = await client.FindSessionKeyAsync(ct);
-        if (foundKey == null) return false;
+        if (foundKey == null)
+            return false;
         await ConnectAsync(foundKey, ct);
         return true;
     }
@@ -65,13 +84,18 @@ public sealed class RyuuSession
         await gate.WaitAsync(ct);
         try
         {
-            if (string.IsNullOrWhiteSpace(key)) { Status = "Ryuu не подключён"; return; }
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                Status = "Ryuu не подключён";
+                return;
+            }
             var used = key;
             using var client = new RyuuClient();
             try
             {
                 var identity = await client.VerifyAsync(used, ct);
-                rejectedKey = null; Username = identity.Username;
+                rejectedKey = null;
+                Username = identity.Username;
                 Status = "Ryuu: " + Username + (identity.Premium ? " · Premium" : "");
             }
             catch (RyuuAuthException) { Reject(used); }
@@ -94,7 +118,14 @@ public sealed class RyuuSession
     public async Task DisconnectAsync()
     {
         await gate.WaitAsync();
-        try { SecretStore.Delete(); key = ""; rejectedKey = null; Username = ""; Status = "Ryuu не подключён"; }
+        try
+        {
+            SecretStore.Delete();
+            key = "";
+            rejectedKey = null;
+            Username = "";
+            Status = "Ryuu не подключён";
+        }
         finally { gate.Release(); }
     }
     public static string SafeError(Exception e) => L.T(e switch

@@ -47,8 +47,8 @@ jobs:
         run: dotnet restore ${{ env.TEST_PROJECT }}
 
       - name: Check C# formatting
-        continue-on-error: true
-        run: dotnet format ${{ env.TEST_PROJECT }} --verify-no-changes --no-restore
+        shell: pwsh
+        run: ./tools/Format-Code.ps1 -Check
 
       - name: Build Release
         run: dotnet build ${{ env.TEST_PROJECT }} --configuration Release --no-restore -warnaserror
