@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Fst.Core/Fst.Core.csproj" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+    <Compile Include="../Fst.App/CdpInjector.cs" Link="CdpInjector.cs" />
+    <Compile Include="../Fst.App/RyuuSession.cs" Link="RyuuSession.cs" />
+    <Compile Include="../Fst.App/AppLog.cs" Link="AppLog.cs" />
+    <Compile Include="../Fst.App/GlobalUsings.cs" Link="GlobalUsings.cs" />
+    <EmbeddedResource Include="../Fst.App/StoreScript.js" LogicalName="Fst.App.StoreScript.js" />
+  </ItemGroup>
+</Project>

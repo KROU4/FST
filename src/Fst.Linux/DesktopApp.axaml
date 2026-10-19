@@ -1,0 +1,13 @@
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Fst.Linux.DesktopApp" RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window"><Setter Property="Background" Value="#111111"/><Setter Property="Foreground" Value="#e6e6de"/><Setter Property="FontFamily" Value="DejaVu Sans Mono,monospace"/><Setter Property="FontSize" Value="13"/></Style>
+    <Style Selector="Button"><Setter Property="Background" Value="#242424"/><Setter Property="BorderBrush" Value="#3e3e3b"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="0"/><Setter Property="MinHeight" Value="38"/><Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="FontWeight" Value="Bold"/></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#e6e6de"/><Setter Property="Foreground" Value="#111111"/><Setter Property="BorderThickness" Value="0"/></Style>
+    <Style Selector="TextBox"><Setter Property="Background" Value="#242424"/><Setter Property="BorderBrush" Value="#3e3e3b"/><Setter Property="CornerRadius" Value="0"/><Setter Property="Padding" Value="12,10"/><Setter Property="MinHeight" Value="40"/></Style>
+    <Style Selector="ListBox"><Setter Property="Background" Value="#171717"/><Setter Property="BorderBrush" Value="#3e3e3b"/><Setter Property="BorderThickness" Value="1"/></Style>
+    <Style Selector="CheckBox"><Setter Property="MinHeight" Value="32"/></Style>
+    <Style Selector="CheckBox:checked /template/ Border#NormalRectangle"><Setter Property="Background" Value="#e6e6de"/><Setter Property="BorderBrush" Value="#e6e6de"/></Style>
+    <Style Selector="CheckBox:checked /template/ Path#CheckGlyph"><Setter Property="Fill" Value="#111111"/></Style>
+  </Application.Styles>
+</Application>

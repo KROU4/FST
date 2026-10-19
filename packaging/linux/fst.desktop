@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Fast Steam Tools
+Exec=fst --show
+Icon=fst
+Terminal=false
+Categories=Game;Utility;

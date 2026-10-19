@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net9.0-windows</TargetFramework><UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>FST-Setup</AssemblyName>
+    <ApplicationIcon>../Fst.App/Assets/fst.ico</ApplicationIcon>
+    <ApplicationManifest>../Fst.App/app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Fst.Core/Fst.Core.csproj" />
+    <Compile Include="../Fst.App/UiTheme.cs" Link="UiTheme.cs" />
+    <Compile Include="../Fst.App/GlobalUsings.cs" Link="GlobalUsings.cs" />
+    <EmbeddedResource Include="../Fst.App/Assets/fst.ico" LogicalName="Fst.App.Assets.fst.ico" />
+    <EmbeddedResource Include="../../dist-next/FST.exe" LogicalName="FST.Payload" />
+  </ItemGroup>
+</Project>

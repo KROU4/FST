@@ -1,0 +1,59 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 9.0.x
+      - name: Offline core checks
+        run: dotnet run --project tests/Fst.Tests/Fst.Tests.csproj -c Release
+      - name: Build Windows installer
+        shell: pwsh
+        run: ./tools/Build-Setup.ps1
+      - name: Verify installer payload
+        shell: pwsh
+        run: |
+          $testExe = Join-Path $env:RUNNER_TEMP 'fst-payload/FST.exe'
+          $setup = Start-Process './release/FST-Setup.exe' -ArgumentList @('--verify-payload', ('"'+$testExe+'"')) -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw 'Installer extraction failed' }
+          if ((Get-FileHash $testExe).Hash -ne (Get-FileHash './dist-next/FST.exe').Hash) { throw 'Installer payload mismatch' }
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: fst-windows-x64
+          path: release/FST-Setup.exe
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 9.0.x
+      - name: Packaging tools
+        run: sudo apt-get update && sudo apt-get install -y zstd
+      - name: Offline core checks
+        run: dotnet run --project tests/Fst.Tests/Fst.Tests.csproj -c Release
+      - name: Build Linux artifacts
+        run: bash tools/Build-Linux.sh
+      - name: Verify packaged Linux backend
+        run: bash tools/Test-Linux-Package.sh
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: fst-linux-x86_64
+          path: |
+            release/*.pkg.tar.zst
+            release/*.tar.gz
+            release/PKGBUILD
+            release/SHA256SUMS-linux.txt
