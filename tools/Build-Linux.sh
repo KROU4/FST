@@ -9,7 +9,8 @@ cp packaging/linux/install.sh packaging/linux/uninstall.sh packaging/linux/fst.s
 mkdir -p release/fst-linux-x64/LICENSES
 cp packaging/linux/LICENSES/* release/fst-linux-x64/LICENSES/
 chmod 755 release/fst-linux-x64/app/fst release/fst-linux-x64/install.sh release/fst-linux-x64/uninstall.sh release/fst-linux-x64/fst-launcher
-archive_name=fst-0.1.0-linux-x86_64.tar.gz
+version="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' Directory.Build.props)"
+archive_name="fst-${version}-linux-x86_64.tar.gz"
 tar --exclude='*.pdb' -czf "release/$archive_name" -C release fst-linux-x64
 archive_hash="$(sha256sum "release/$archive_name" | cut -d ' ' -f 1)"
 sed "s/REPLACE_WITH_RELEASE_SHA256/$archive_hash/" packaging/arch/PKGBUILD > release/PKGBUILD

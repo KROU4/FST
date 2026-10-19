@@ -19,6 +19,8 @@ jobs:
           dotnet-version: 9.0.x
       - name: Offline core checks
         run: dotnet run --project tests/Fst.Tests/Fst.Tests.csproj -c Release
+      - name: Windows loader integration checks
+        run: dotnet run --project tests/Fst.Windows.Tests/Fst.Windows.Tests.csproj -c Release
       - name: Build Windows installer
         shell: pwsh
         run: ./tools/Build-Setup.ps1

@@ -35,26 +35,26 @@ public static class Localization
         ["Не удалось открыть папку FST."]="Could not open the FST folder.",["Steam не завершился за 45 секунд. Файлы установлены; перезапустите Steam вручную."]="Steam did not exit within 45 seconds. Files are installed; restart Steam manually.",
         ["FST запущен. Источник: Ryuu. Подключение хранится в хранилище Windows."]="FST started. Source: Ryuu. Connection stored in Windows Credential Manager.",["Ryuu успешно подключён."]="Ryuu connected successfully.",["Ошибка переноса подключения Ryuu: {0}"]="Ryuu connection import failed: {0}",["Проверка подключения Ryuu остановлена."]="Ryuu connection maintenance stopped.",["Ошибка внедрения интерфейса: {0}"]="Store UI injection failed: {0}",["Игра {0} скачана из Ryuu."]="Game {0} downloaded from Ryuu.",["Установлена игра {0}: Lua — {1}, манифестов — {2}. Копия: {3}"]="Installed game {0}: {1} Lua, {2} manifests. Backup: {3}",["Ошибка установки: {0}"]="Installation failed: {0}",["Настройка завершена: автозапуск включён, Steam подготовлен."]="Setup complete: startup enabled, Steam prepared.",["Сбой FST: {0}"]="FST error: {0}",["Открыта папка: {0}"]="Opened folder: {0}",["Ошибка открытия папки: {0}"]="Could not open folder: {0}",["Удалено Lua: {0}"]="Lua scripts removed: {0}",["Проверка языка логов."]="Log language check.",
         ["Некорректный AppID."]="Invalid AppID.",["Lua уже удалён."]="Lua has already been removed.",["Путь Lua содержит ссылку."]="The Lua path contains a link.",["Lua содержит команды вне формата манифеста. Установка остановлена."]="Lua contains unsupported commands. Installation stopped.",["В архиве нет Lua для запрошенной игры."]="The archive has no Lua for the requested game.",["Файл не является бинарным манифестом Steam."]="The file is not a binary Steam manifest.",["Небезопасный путь в архиве."]="Unsafe archive path.",["Повторяющееся имя файла."]="Duplicate filename.",["Архив превышает допустимый размер."]="Archive exceeds the size limit.",["Lua не содержит addappid."]="Lua has no addappid statement.",["Ryuu вернул страницу вместо архива."]="Ryuu returned a page instead of an archive.",["Ryuu вернул ответ API вместо ZIP. Файлы игры могут быть недоступны."]="Ryuu returned an API response instead of a ZIP. Game files may be unavailable.",["Загрузка слишком большая."]="Download exceeds the size limit.",["Ryuu вернул неполный ответ авторизации."]="Ryuu returned an incomplete authentication response.",["Ryuu вернул неверный ответ авторизации. Попробуйте позже."]="Ryuu returned an invalid authentication response. Try again later.",
-        [LuaLoader.MissingMessage]="No Lua loader was found in the Steam folder, so Steam cannot see added games. Install OpenSteamTool (dwmapi.dll, xinput1_4.dll and OpenSteamTool.dll next to steam.exe) or select the correct Steam folder in Folders.",
-        ["Установка Lua-загрузчика OpenSteamTool…"]="Installing the OpenSteamTool Lua loader…",["Не удалось установить OpenSteamTool: {0}"]="Could not install OpenSteamTool: {0}",
-        ["OpenSteamTool {0} установлен в папку Steam: {1}"]="OpenSteamTool {0} installed into the Steam folder: {1}",
-        ["OpenSteamTool установлен. Перезапустите Steam, чтобы добавленные игры появились в библиотеке."]="OpenSteamTool installed. Restart Steam so added games appear in the library.",
+        [LuaLoader.MissingMessage]="No Lua loader was found in the Steam folder, so Steam cannot see added games. Install BetterSteamTools (dwmapi.dll, xinput1_4.dll and OpenSteamTool.dll next to steam.exe) or select the correct Steam folder in Folders.",
+        ["Установка Lua-загрузчика BetterSteamTools…"]="Installing the BetterSteamTools Lua loader…",["Не удалось установить BetterSteamTools: {0}"]="Could not install BetterSteamTools: {0}",
+        ["BetterSteamTools {0} установлен в папку Steam: {1}"]="BetterSteamTools {0} installed into the Steam folder: {1}",
+        ["BetterSteamTools установлен. Перезапустите Steam, чтобы добавленные игры появились в библиотеке."]="BetterSteamTools installed. Restart Steam so added games appear in the library.",
         ["Добавлено. Перезапустите Steam, чтобы игра появилась в библиотеке."]="Added. Restart Steam so the game appears in the library.",
-        [LuaLoader.UnsupportedMessage]="OpenSteamTool does not support the installed Steam build yet ({0}): Steam shows OpenSteamTool errors, and added games will appear in the library only after an OpenSteamTool update.",
+        [LuaLoader.UnsupportedMessage]="BetterSteamTools does not support the installed Steam build yet ({0}): Steam shows BetterSteamTools errors, and added games will appear in the library only after a BetterSteamTools update.",
         ["Идёт откат Steam. Дождитесь завершения."]="Steam rollback in progress. Please wait.",
         ["Файл steam.cfg в папке Steam запрещает обновления. Удалите его и повторите."]="steam.cfg in the Steam folder blocks updates. Delete it and try again.",
-        ["Поиск версии Steam, которую поддерживает OpenSteamTool…"]="Looking up the Steam build OpenSteamTool supports…",["Поиск файлов Steam {0}…"]="Locating Steam {0} files…",
+        ["Поиск версии Steam, которую поддерживает BetterSteamTools…"]="Looking up the Steam build BetterSteamTools supports…",["Поиск файлов Steam {0}…"]="Locating Steam {0} files…",
         ["Закрытие Steam…"]="Closing Steam…",["Установка Steam {0}…"]="Installing Steam {0}…",
         ["Steam не установил версию {0} (сейчас {1}). Подробности в logs\\bootstrap_log.txt."]="Steam did not install build {0} (now {1}). See logs\\bootstrap_log.txt.",
         ["Steam откатан с {0} на {1}, обновления Steam отключены."]="Steam rolled back from {0} to {1}; Steam updates are disabled.",["Не удалось вернуть {0}: {1}"]="Could not restore {0}: {1}",
         ["Steam не завершился за 45 секунд. Закройте Steam и повторите."]="Steam did not exit within 45 seconds. Close Steam and try again.",
         ["Откатить Steam"]="Roll back Steam",["Вернуть обновления"]="Allow updates",
         ["Обновления Steam включены. Steam обновится при следующем запуске."]="Steam updates enabled. Steam will update on its next start.",["Обновления Steam включены."]="Steam updates enabled.",
-        ["FST закроет Steam, установит последнюю версию, которую поддерживает OpenSteamTool, и отключит обновления Steam (файл steam.cfg). Вернуть обновления можно здесь же. Продолжить?"]="FST will close Steam, install the newest build OpenSteamTool supports and disable Steam updates (steam.cfg). You can allow updates again here. Continue?",
+        ["FST закроет Steam, установит последнюю версию, которую поддерживает BetterSteamTools, и отключит обновления Steam (файл steam.cfg). Вернуть обновления можно здесь же. Продолжить?"]="FST will close Steam, install the newest build BetterSteamTools supports and disable Steam updates (steam.cfg). You can allow updates again here. Continue?",
         ["Установлен Steam {0}, обновления отключены."]="Steam {0} installed, updates disabled.",["Не удалось откатить Steam: {0}"]="Could not roll back Steam: {0}",
-        ["OpenSteamTool не поддерживает эту версию Steam"]="OpenSteamTool does not support this Steam build",["Обновления Steam отключены FST"]="Steam updates are disabled by FST",
+        ["BetterSteamTools не поддерживает эту версию Steam"]="BetterSteamTools does not support this Steam build",["Обновления Steam отключены FST"]="Steam updates are disabled by FST",
         ["Откатить Steam можно в окне FST."]="You can roll Steam back in the FST window.",
-        ["Трекер OpenSteamTool не сообщил поддерживаемую версию Steam."]="The OpenSteamTool tracker did not report a supported Steam build.",
+        ["Трекер BetterSteamTools не сообщил поддерживаемую версию Steam."]="The BetterSteamTools tracker did not report a supported Steam build.",
         ["Повреждён список файлов Steam."]="The Steam file list is corrupted.",["Valve больше не раздаёт файлы этой версии Steam."]="Valve no longer serves the files of this Steam build.",
         ["Список файлов этой версии Steam не найден в архиве."]="The file list of this Steam build was not found in the archive.",
         ["Steam участвует в бета-тесте. Отключите бета-версию в настройках Steam и повторите."]="Steam is enrolled in the beta. Leave the beta in Steam settings and try again.",
@@ -64,8 +64,14 @@ public static class Localization
         ["Не удалось вернуть steam.cfg: {0}"]="Could not restore steam.cfg: {0}",["Нет связи с сервером. Проверьте интернет и повторите."]="No connection to the server. Check the internet connection and try again.",
         ["FST уже запущен. Откатите Steam кнопкой в окне FST."]="FST is already running. Roll Steam back with the button in the FST window.",
         ["Steam {0} установлен, но Lua-загрузчик не на месте. Подробности в логах."]="Steam {0} installed, but the Lua loader is missing. See the logs.",
-        ["Архив OpenSteamTool превышает допустимый размер."]="The OpenSteamTool archive is too large.",["Контрольная сумма архива OpenSteamTool не совпадает."]="The OpenSteamTool archive checksum does not match."
+        ["Архив BetterSteamTools превышает допустимый размер."]="The BetterSteamTools archive is too large.",["Контрольная сумма архива BetterSteamTools не совпадает."]="The BetterSteamTools archive checksum does not match."
     };
+    static Localization()
+    {
+        // Stored log events from older FST builds keep their original loader name and still translate when the UI language changes.
+        foreach(var entry in English.Where(pair=>pair.Key.Contains("BetterSteamTools",StringComparison.Ordinal)).ToArray())
+            English.TryAdd(entry.Key.Replace("BetterSteamTools","OpenSteamTool",StringComparison.Ordinal),entry.Value.Replace("BetterSteamTools","OpenSteamTool",StringComparison.Ordinal));
+    }
     public static string T(string text)
     {
         if(English.TryGetValue(text,out var english))return Language=="en"?english:text;

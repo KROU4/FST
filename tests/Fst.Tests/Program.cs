@@ -139,6 +139,16 @@ Check(LuaLoader.NeedsInstall(upgradeSteam,upgradeState),"older FST-installed loa
 var v2=LoaderZip("loader-v2",'b');Check(LuaLoader.Install(v2,upgradeSteam,upgradeState,Sha(v2),"2.0").Length==3&&File.ReadAllText(Path.Combine(upgradeSteam,"OpenSteamTool.dll")).EndsWith("b"),"FST-installed loader upgraded");
 Check(!Directory.EnumerateFiles(upgradeSteam,"*.fst-*").Any(),"upgrade leaves no replaced or temporary files");
 Check(LuaLoader.Install(v2,upgradeSteam,upgradeState,Sha(v2),"2.0").Length==0,"same loader version is not reinstalled");
+// A fork version can collide with an upstream version: source identity is part of the installation state.
+var migrationSteam=Path.Combine(testRoot,"migration-steam");Directory.CreateDirectory(migrationSteam);File.WriteAllText(Path.Combine(migrationSteam,"steam.exe"),"");
+var migrationState=Path.Combine(testRoot,"migration-state.json");
+LuaLoader.Install(v1,migrationSteam,migrationState,Sha(v1),LuaLoader.Version);
+var oldState=JsonSerializer.Deserialize<LoaderState>(File.ReadAllText(migrationState))!;
+File.WriteAllText(migrationState,JsonSerializer.Serialize(oldState with {Source=null}));
+Check(LuaLoader.NeedsInstall(migrationSteam,migrationState),"legacy loader source scheduled for migration even with equal version");
+Check(LuaLoader.Install(v2,migrationSteam,migrationState,Sha(v2),LuaLoader.Version).Length==3&&JsonSerializer.Deserialize<LoaderState>(File.ReadAllText(migrationState))!.Source==LuaLoader.Source,"migration replaces only owned DLLs and records BetterSteamTools source");
+Check(!LuaLoader.NeedsInstall(migrationSteam,migrationState),"current BetterSteamTools source and version are not reinstalled");
+Check(LuaLoader.DefaultLuaDirectories(migrationSteam).SequenceEqual([Path.Combine(migrationSteam,"config","stplug-in")]),"BetterSteamTools built-in Lua directory detected without config");
 File.WriteAllText(Path.Combine(upgradeSteam,"dwmapi.dll"),"MZ user build");
 var v3=LoaderZip("loader-v3",'c');var upgraded=LuaLoader.Install(v3,upgradeSteam,upgradeState,Sha(v3),"3.0");
 Check(upgraded.Length==2&&File.ReadAllText(Path.Combine(upgradeSteam,"dwmapi.dll"))=="MZ user build","loader file changed by the user is never replaced");
@@ -148,7 +158,7 @@ File.Delete(Path.Combine(upgradeSteam,"dwmapi.dll"));
 Check(LuaLoader.NeedsInstall(upgradeSteam,upgradeState),"missing FST-installed loader file detected despite remaining proxies");
 Check(LuaLoader.Install(v3,upgradeSteam,upgradeState,Sha(v3),"3.0").Contains(Path.Combine(upgradeSteam,"OpenSteamTool.dll"))&&File.ReadAllText(upgradeState).Contains("OpenSteamTool.dll"),"missing loader file restored");
 File.Delete(Path.Combine(upgradeSteam,"OpenSteamTool.dll"));File.Delete(Path.Combine(upgradeSteam,"dwmapi.dll"));File.Delete(Path.Combine(upgradeSteam,"xinput1_4.dll"));File.WriteAllText(Path.Combine(upgradeSteam,"hid.dll"),"MZ SteamTools");
-Check(!LuaLoader.NeedsInstall(upgradeSteam,upgradeState),"FST does not install OpenSteamTool next to another loader");
+Check(!LuaLoader.NeedsInstall(upgradeSteam,upgradeState),"FST does not install BetterSteamTools next to another loader");
 var foreignSteam=Path.Combine(testRoot,"foreign-steam");Directory.CreateDirectory(foreignSteam);File.WriteAllText(Path.Combine(foreignSteam,"steam.exe"),"");File.WriteAllText(Path.Combine(foreignSteam,"xinput1_4.dll"),"MZ other loader");
 Check(!LuaLoader.NeedsInstall(foreignSteam,Path.Combine(testRoot,"foreign-state.json")),"another loader is used as is");
 LuaLoader.Install(v1,foreignSteam,Path.Combine(testRoot,"foreign-state.json"),Sha(v1),"1.0");
@@ -158,18 +168,30 @@ var trackerSteam=Path.Combine(testRoot,"tracker-steam");Directory.CreateDirector
 foreach(var f in new[]{"OpenSteamTool.dll","steamclient64.dll","steamui.dll"})File.WriteAllText(Path.Combine(trackerSteam,f),f);
 Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("/steamclient/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).SequenceEqual(["steamclient64.dll"]),"unsupported Steam build detected");
 Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(_=>throw new HttpRequestException("offline"))))).Length==0,"offline tracker is not reported as unsupported");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.Host=="raw.githubusercontent.com"?HttpStatusCode.NotFound:HttpStatusCode.OK))))).Length==0,"fallback tracker is checked after a primary mirror 404");
 const string patternToml="[0xD05E26A2]\nname = \"AddProtobufAsBinary\"\nrva = \"0x9CFE90\"\nsig = \"40 53 55 56\"\n";
 const string ipcToml="[IClientUser]\ninterface_id = 1\nvtable_rva = \"0x1301A60\"\n";
 Check(LuaLoader.UsableTrackerToml("pattern",patternToml)&&LuaLoader.UsableTrackerToml("ipc",ipcToml),"valid cached signatures accepted");
-Check(!LuaLoader.UsableTrackerToml("pattern","")&&!LuaLoader.UsableTrackerToml("ipc"," \n")&&!LuaLoader.UsableTrackerToml("pattern","[0x1]\nname = \"x\"\n")&&!LuaLoader.UsableTrackerToml("ipc",patternToml),"empty or entry-less cache rejected like OpenSteamTool");
+Check(!LuaLoader.UsableTrackerToml("pattern","")&&!LuaLoader.UsableTrackerToml("ipc"," \n")&&!LuaLoader.UsableTrackerToml("pattern","[0x1]\nname = \"x\"\n")&&!LuaLoader.UsableTrackerToml("ipc",patternToml),"empty or entry-less cache rejected like BetterSteamTools");
+foreach(var (channel,validCache) in new[]{("pattern",patternToml),("ipc",ipcToml)})
+{
+    Check(!LuaLoader.UsableTrackerToml(channel,validCache+"broken = [\n"),channel+" cache with valid prefix and truncated array rejected");
+    Check(!LuaLoader.UsableTrackerToml(channel,validCache+"broken = \"unterminated\n"),channel+" cache with truncated string rejected");
+    Check(!LuaLoader.UsableTrackerToml(channel,validCache+"duplicate = 1\nduplicate = 2\n"),channel+" cache with duplicate keys rejected");
+    Check(LuaLoader.UsableTrackerToml(channel,validCache.Replace("\n","\r\n")+"# trailing comment\r\n"),channel+" valid CRLF cache accepted");
+}
+Check(!LuaLoader.UsableTrackerToml("pattern","[0x1]\nname = 'no signature'\n[unrelated]\nrva = '0x1'\n"),"signature value must belong to its pattern table");
+Check(LuaLoader.UsableTrackerToml("pattern","['0x1']\nrva = '0x123' # a valid literal string\n"),"quoted TOML pattern table accepted");
 var cachedPattern=Path.Combine(trackerSteam,"opensteamtool","pattern","steamclient",Sha(Path.Combine(trackerSteam,"steamclient64.dll")).ToLowerInvariant()+".toml");Directory.CreateDirectory(Path.GetDirectoryName(cachedPattern)!);
 HttpClient PatternClient404()=>new(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("pattern/steamclient/")?HttpStatusCode.NotFound:HttpStatusCode.OK)));
 File.WriteAllText(cachedPattern,"");
 Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,PatternClient404())).SequenceEqual(["steamclient64.dll"]),"empty cached signatures do not hide an unsupported build");
+File.WriteAllText(cachedPattern,patternToml+"broken = [\n");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,PatternClient404())).SequenceEqual(["steamclient64.dll"]),"truncated cached signatures trigger tracker lookup");
 File.WriteAllText(cachedPattern,patternToml);
 Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,PatternClient404())).Length==0,"cached signatures count as supported");
-Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("/ipc/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).SequenceEqual(["steamclient64.dll"]),"missing IPC spec detected");
-Check((await LuaLoader.UnsupportedSteamFilesAsync(loaderSteam)).Length==0,"tracker is not queried without OpenSteamTool");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("ipc/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).SequenceEqual(["steamclient64.dll"]),"missing IPC spec detected");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(loaderSteam)).Length==0,"tracker is not queried without BetterSteamTools");
 var loaderState=Path.Combine(testRoot,"loader-state.json");
 try{await LuaLoader.DownloadAndInstallAsync(loaderSteam,Path.Combine(testRoot,"loader-temp"),loaderState,new HttpClient(new FakeHandler(request=>
 {
@@ -182,10 +204,10 @@ try{await LuaLoader.DownloadAndInstallAsync(Path.Combine(testRoot,"no-steam"),Pa
 catch(FileNotFoundException){Check(true,"loader is not downloaded without steam.exe");}
 var otherLoader=Path.Combine(testRoot,"other-loader");Directory.CreateDirectory(otherLoader);File.WriteAllText(Path.Combine(otherLoader,"xinput1_4.dll"),"");
 Check(LuaLoader.Find(otherLoader)=="xinput1_4.dll","existing proxy loader detected");
-if(args.Contains("--live"))
+if(args.Contains("--live")||args.Contains("--live-loader"))
 {
     var liveFiles=await LuaLoader.DownloadAndInstallAsync(loaderSteam,Path.Combine(testRoot,"loader-temp"),loaderState);
-    Check(liveFiles.Length==3&&LuaLoader.Find(loaderSteam)=="OpenSteamTool.dll","OpenSteamTool release verified and installed in sandbox");
+    Check(liveFiles.Length==3&&LuaLoader.Find(loaderSteam)=="OpenSteamTool.dll","BetterSteamTools release verified and installed in sandbox");
     Check((await LuaLoader.DownloadAndInstallAsync(loaderSteam,Path.Combine(testRoot,"loader-temp"),loaderState)).Length==0&&!LuaLoader.NeedsInstall(loaderSteam,loaderState),"current loader is not reinstalled");
 }
 // A loader is broken when FST's OpenSteamTool.dll is gone but its proxies stayed; the job must stop before Ryuu.
@@ -197,6 +219,29 @@ Check(LuaLoader.Find(brokenSteam)!=null&&LuaLoader.Broken(brokenSteam,brokenStat
 File.WriteAllText(Path.Combine(brokenSteam,"hid.dll"),"MZ SteamTools");
 Check(!LuaLoader.Broken(brokenSteam,brokenState),"another loader next to FST leftovers is not reported as broken");
 Check(LuaLoader.Broken(Path.Combine(testRoot,"no-loader"),brokenState),"no loader is broken");
+// Recovery owns a fixed destination even if settings change, or FST restarts while the DLLs are set aside.
+var recoveryRoot=Path.Combine(testRoot,"recovery-original");var otherRoot=Path.Combine(testRoot,"recovery-other");var aside=Path.Combine(testRoot,"loader-aside");
+Directory.CreateDirectory(recoveryRoot);Directory.CreateDirectory(otherRoot);
+File.WriteAllText(Path.Combine(recoveryRoot,"steam.exe"),"");File.WriteAllText(Path.Combine(otherRoot,"steam.exe"),"");
+foreach(var file in LuaLoader.Files)File.WriteAllText(Path.Combine(recoveryRoot,file),"original "+file);
+LoaderRecovery.SetAside(recoveryRoot,aside);
+Check(LuaLoader.Files.All(file=>!File.Exists(Path.Combine(recoveryRoot,file))&&File.Exists(Path.Combine(aside,file))),"loader files set aside after destination recorded");
+var changedSteamRoot=otherRoot;
+LoaderRecovery.Recover(aside,(file,e)=>throw new Exception(file,e));
+Check(LuaLoader.Files.All(file=>File.ReadAllText(Path.Combine(recoveryRoot,file))=="original "+file)&&!Directory.EnumerateFiles(changedSteamRoot).Any(file=>file.EndsWith(".dll")),"recovery uses recorded Steam root after settings change");
+Check(!File.Exists(Path.Combine(aside,"restore.json")),"completed recovery removes its journal");
+LoaderRecovery.SetAside(recoveryRoot,aside);
+File.WriteAllText(Path.Combine(recoveryRoot,"dwmapi.dll"),"replacement loader");
+LoaderRecovery.Recover(aside,(file,e)=>throw new Exception(file,e));
+Check(File.ReadAllText(Path.Combine(recoveryRoot,"dwmapi.dll"))=="replacement loader","recovery preserves a reinstalled loader");
+LoaderRecovery.SetAside(recoveryRoot,aside);
+File.WriteAllText(Path.Combine(aside,"restore.json"),"{broken");
+var recoveryErrors=0;LoaderRecovery.Recover(aside,(_,_)=>recoveryErrors++);
+Check(recoveryErrors==1&&LuaLoader.Files.All(file=>File.Exists(Path.Combine(aside,file))),"invalid recovery journal preserves all DLLs");
+File.Delete(Path.Combine(aside,"restore.json"));LoaderRecovery.Recover(aside,(_,_)=>recoveryErrors++);
+Check(recoveryErrors==2&&LuaLoader.Files.All(file=>File.Exists(Path.Combine(aside,file))),"missing recovery journal never guesses a new destination");
+try{LoaderRecovery.SetAside(otherRoot,aside);throw new Exception("Expected pending recovery rejection");}
+catch(IOException){Check(LuaLoader.Files.All(file=>File.Exists(Path.Combine(aside,file))),"new rollback cannot overwrite pending recovery files");}
 // Steam rollback: tracker README, archived manifest lookup, loopback package mirror and steam.cfg ownership.
 const string manifestOld="\"win64\"\n{\n\t\"version\"\t\t\"1788652215\"\n\t\"bins_win64\"\n\t{\n\t\t\"file\"\t\t\"bins_win64.zip.aa\"\n\t\t\"zipvz\"\t\t\"bins_win64.zip.vz.bb_1\"\n\t}\n}\n";
 const string manifestNew="\"win64\"\n{\n\t\"version\"\t\t\"1791918634\"\n}\n";
@@ -204,7 +249,7 @@ Check(SteamDowngrade.ManifestVersion(manifestOld)=="1788652215"&&SteamDowngrade.
 Check(SteamDowngrade.StableFromReadme("| Channel | Version | Updated (UTC) |\n| --- | --- | --- |\n| Stable | 1788652215 | 2026-09-05 |\n| Beta | 1790380355 | x |")=="1788652215"&&SteamDowngrade.StableFromReadme("nothing")==null,"tracker stable build parsed");
 var packageSteam=Path.Combine(testRoot,"package-steam");Directory.CreateDirectory(Path.Combine(packageSteam,"package"));File.WriteAllText(Path.Combine(packageSteam,"package","steam_client_win64.manifest"),manifestNew);
 Check(SteamDowngrade.InstalledVersion(packageSteam)=="1791918634"&&SteamDowngrade.InstalledVersion(testRoot)==null,"installed Steam build read");
-Check(await SteamDowngrade.SupportedStableAsync(new HttpClient(new FakeHandler(r=>new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("| Stable | "+(r.RequestUri!.AbsolutePath.Contains("/ipc/")?"1788400362":"1788652215")+" | x |")})))=="1788400362","rollback target is covered by both signatures and IPC");
+Check(await SteamDowngrade.SupportedStableAsync(new HttpClient(new FakeHandler(r=>new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("| Stable | "+(r.RequestUri!.AbsolutePath.Contains("ipc/")?"1788400362":"1788652215")+" | x |")})))=="1788400362","rollback target is covered by both signatures and IPC");
 HttpClient Archive(Func<string,HttpStatusCode> package)=>new(new FakeHandler(r=>
 {
     var url=r.RequestUri!.ToString();
@@ -251,8 +296,9 @@ if(args.Contains("--live"))
     Check(SteamDowngrade.ManifestVersion(await SteamDowngrade.FindManifestAsync(stable,live))==stable,"live archived manifest found and all packages on Valve CDN");
 }
 Localization.Language="en";
+Check(Localization.F("Не удалось установить OpenSteamTool: {0}","offline")=="Could not install OpenSteamTool: offline","legacy loader log events still translate after migration");
 Check(Localization.T(LuaLoader.MissingMessage).StartsWith("No Lua loader"),"missing loader message translated");
-Check(Localization.T("Откатить Steam")=="Roll back Steam"&&Localization.T("Трекер OpenSteamTool не сообщил поддерживаемую версию Steam.").StartsWith("The OpenSteamTool"),"rollback strings translated");
+Check(Localization.T("Откатить Steam")=="Roll back Steam"&&Localization.T("Трекер BetterSteamTools не сообщил поддерживаемую версию Steam.").StartsWith("The BetterSteamTools"),"rollback strings translated");
 Check(Localization.T("Подключить Ryuu")=="Connect Ryuu","English UI translation");
 Check(Localization.F("Удалено Lua: {0}",2)=="Lua scripts removed: 2","English structured log translation");
 Localization.Language="ru";

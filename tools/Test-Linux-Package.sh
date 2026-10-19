@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 workspace="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
-archive="$workspace/release/fast-steam-tools-bin-0.1.0-1-x86_64.pkg.tar.zst"
+version="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$workspace/Directory.Build.props")"
+archive="$workspace/release/fast-steam-tools-bin-${version}-1-x86_64.pkg.tar.zst"
 test_root="$(mktemp -d /tmp/fst-package-check-XXXXXXXX)"
 tar --zstd -xf "$archive" -C "$test_root"
 grep -q '^pkgname = fast-steam-tools-bin$' "$test_root/.PKGINFO"

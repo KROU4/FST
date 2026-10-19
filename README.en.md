@@ -2,22 +2,24 @@
 
 FST is a Windows/Linux tray app that adds an **Add to library for free** button to Steam store pages. It downloads available Lua/manifest archives using your Ryuu account, validates and installs them for a compatible loader, then optionally restarts Steam.
 
-[Download v0.1.0](https://github.com/superhe11/FST/releases/tag/v0.1.0) · [Releases](https://github.com/superhe11/FST/releases) · [Русский](README.md)
+[Download v0.1.1](https://github.com/superhe11/FST/releases/tag/v0.1.1) · [Releases](https://github.com/superhe11/FST/releases) · [Русский](README.md)
 
 ## Downloads
 
 - Windows x64: **FST-Setup.exe**.
-- Arch x86_64: **fast-steam-tools-bin-0.1.0-1-x86_64.pkg.tar.zst**.
-- Linux per-user installer: **fst-0.1.0-linux-x86_64.tar.gz**.
+- Arch x86_64: **fast-steam-tools-bin-0.1.1-1-x86_64.pkg.tar.zst**.
+- Linux per-user installer: **fst-0.1.1-linux-x86_64.tar.gz**.
 - PKGBUILD and SHA256SUMS.txt are included in the release.
 
-The .NET runtime is bundled. Game files, manifests, account credentials and Steam loader binaries are not included; on Windows OpenSteamTool is downloaded on demand.
+The .NET runtime is bundled. Game files, manifests, account credentials and Steam loader binaries are not included; on Windows BetterSteamTools is downloaded on demand.
 
 ## Windows installation
 
-Requires Windows 10/11 x64 and Steam. Without a Lua loader Steam ignores `config\lua` and added games never show up in the library. If no loader is present (no `OpenSteamTool.dll`, `xinput1_4.dll`, `dwmapi.dll` or `hid.dll` next to `steam.exe`), FST downloads [OpenSteamTool](https://github.com/OpenSteam001/OpenSteamTool) 1.4.8 from the official release during setup, at startup and before adding a game, verifies the archive SHA-256 and places `dwmapi.dll`, `xinput1_4.dll` and `OpenSteamTool.dll` in the Steam folder. Foreign files are never overwritten; an already installed loader is used as is. An OpenSteamTool copy installed by FST is upgraded when a newer FST ships a newer loader; DLLs changed by hand are left alone.
+Requires Windows 10/11 x64 and Steam. Without a Lua loader added games never show up in the library. If no loader is present (no `OpenSteamTool.dll`, `xinput1_4.dll`, `dwmapi.dll` or `hid.dll` next to `steam.exe`), FST downloads [BetterSteamTools v1.0.4](https://github.com/madoiscool/BetterSteamTools/releases/tag/v1.0.4), verifies its pinned archive SHA-256 and places `dwmapi.dll`, `xinput1_4.dll` and `OpenSteamTool.dll` in the Steam folder. This OpenSteamTool fork uses `madoiscool/steam-monitor` and its mirrors. Foreign or manually changed DLLs are preserved. Source, version and file hashes are recorded for FST-owned installations, allowing an untouched OpenSteamTool copy installed by FST to migrate to BetterSteamTools.
 
-OpenSteamTool relies on signatures published separately for every Steam build. Right after a Steam update they may be missing for a few days: Steam then shows OpenSteamTool error dialogs and added games stay hidden. FST checks this at startup and after adding a game and warns in a notification; the Lua files stay in place and the games appear once OpenSteamTool is updated.
+BetterSteamTools reads `config\stplug-in` even without `opensteamtool.toml`. FST mirrors Lua into that folder while keeping the selected primary folder (default `config\lua`) and custom `[lua].paths`. The library list and removal include all copies. Existing `opensteamtool.toml` files are preserved.
+
+BetterSteamTools relies on signatures published separately for every Steam build. Right after a Steam update they may be missing for a few days: Steam then shows BetterSteamTools error dialogs and added games stay hidden. FST checks this at startup and after adding a game and warns in a notification; the Lua files stay in place and the games appear once BetterSteamTools is updated.
 
 To avoid waiting, the Steam card in the main window offers **Roll back Steam**. FST takes the newest stable build covered by the signature tracker, finds its file list in the Wayback Machine, checks that Valve still serves every package, closes Steam and installs that build through Steam's own updater (packages come from Valve's CDN via a loopback address, and Steam verifies their hashes), then disables Steam updates with `steam.cfg`. **Allow updates** removes that `steam.cfg`; a steam.cfg written by someone else is left alone.
 
@@ -38,7 +40,7 @@ First install **SLSsteam + lumalinux**, following the [upstream desktop setup](h
 Download the package and run:
 
 ```bash
-sudo pacman -U ./fast-steam-tools-bin-0.1.0-1-x86_64.pkg.tar.zst
+sudo pacman -U ./fast-steam-tools-bin-0.1.1-1-x86_64.pkg.tar.zst
 fst
 ```
 
@@ -47,7 +49,7 @@ A running, unlocked Secret Service keyring is required to save Ryuu sign-in. `li
 Alternatively:
 
 ```bash
-tar -xzf fst-0.1.0-linux-x86_64.tar.gz
+tar -xzf fst-0.1.1-linux-x86_64.tar.gz
 cd fst-linux-x64
 bash install.sh
 ```
@@ -110,7 +112,9 @@ bash tools/Test-Linux-Package.sh
 
 Outputs are in `release/`. The Linux packager also requires tar, zstd, sha256sum and standard shell tools.
 
-v0.1.0 passed 37 offline core checks and 32 Linux checks locally. Windows compilation, RU/EN Linux GUI rendering, package contents and checksums were verified. **Linux testing used WSL, not an actual Arch Steam client. Game downloading/launching on Arch has not been verified.** Live test modes are opt-in and may consume Ryuu quota.
+v0.1.1 passed 114 offline core checks, 7 Windows integration checks and 32 Linux checks locally. Windows compilation, RU/EN Linux GUI rendering, package contents and checksums were verified. **Linux testing used WSL, not an actual Arch Steam client. Game downloading/launching on Arch has not been verified.**
+
+On Windows, also run `dotnet run --project tests/Fst.Windows.Tests/Fst.Windows.Tests.csproj -c Release` to check loader directories, Lua installation/removal and the operation lock. `dotnet run --project tests/Fst.Tests/Fst.Tests.csproj -c Release -- --live-loader` downloads the pinned BetterSteamTools ZIP into an isolated sandbox without executing its DLLs, modifying Steam or consuming Ryuu quota. `dotnet run --project tests/Fst.Windows.Tests/Fst.Windows.Tests.csproj -c Release -- --verify-steam-root "A:\Steam"` checks the live tracker using copies of the installed Steam DLLs without a signature cache; the installed client is left unchanged.
 
 For troubleshooting, open Logs and check Steam paths, loader installation/compatibility and the local CEF endpoint on `127.0.0.1:8080`. Report OS, FST version, Steam installation type and the error in [Issues](https://github.com/superhe11/FST/issues); do not upload keys, cookies or credential files.
 

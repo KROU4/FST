@@ -50,21 +50,11 @@ public static class SteamControl
     }
 
     /// <summary>Puts loader DLLs set aside by a rollback back into the Steam folder, also after FST was killed mid-rollback.</summary>
-    public static void RecoverLoader(Settings settings)
-    {
-        var aside = Path.Combine(Settings.DataRoot, "loader-aside");
-        foreach (var file in LuaLoader.Files)
-        {
-            var source = Path.Combine(aside, file);
-            if (!File.Exists(source)) continue;
-            // A file that reappeared meanwhile (reinstalled loader) wins; the stale copy is dropped.
-            try { var target = Path.Combine(settings.SteamRoot, file); if (File.Exists(target)) File.Delete(source); else File.Move(source, target); }
-            catch (Exception e) { JobService.Log("Не удалось вернуть {0}: {1}", file, e.Message); }
-        }
-    }
+    public static void RecoverLoader() => LoaderRecovery.Recover(Path.Combine(Settings.DataRoot, "loader-aside"),
+        (file, error) => JobService.Log("Не удалось вернуть {0}: {1}", file, error.Message));
 
     /// <summary>
-    /// Installs the newest stable Steam build OpenSteamTool supports and blocks Steam self-updates with steam.cfg.
+    /// Installs the newest stable Steam build BetterSteamTools supports and blocks Steam self-updates with steam.cfg.
     /// Packages come from Valve's CDN through a loopback mirror that pins the archived client manifest.
     /// </summary>
     public static async Task<RollbackResult> DowngradeAsync(Settings settings, Action<string> progress, CancellationToken ct = default)
@@ -86,7 +76,7 @@ public static class SteamControl
             // A beta client asks for steam_client_publicbeta_win64, which the pinned stable manifest does not cover.
             if (File.Exists(Path.Combine(root, "package", "beta"))) throw new InvalidOperationException("Steam участвует в бета-тесте. Отключите бета-версию в настройках Steam и повторите.");
             using var client = new HttpClient(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromMinutes(1) };
-            Report(L.T("Поиск версии Steam, которую поддерживает OpenSteamTool…"));
+            Report(L.T("Поиск версии Steam, которую поддерживает BetterSteamTools…"));
             var target = await SteamDowngrade.SupportedStableAsync(client, ct);
             var installed = SteamDowngrade.InstalledVersion(root);
             Report(L.F("Поиск файлов Steam {0}…", target));
@@ -97,10 +87,8 @@ public static class SteamControl
             stopped = true;
             // FST's own update block would stop the bootstrapper from installing anything; it is put back if the rollback fails.
             hadFstBlock = SteamDowngrade.AllowUpdates(root);
-            // Keep OpenSteamTool out of the bootstrapper run: its dialogs for the old build would block the update.
-            Directory.CreateDirectory(aside);
-            foreach (var file in LuaLoader.Files.Where(f => File.Exists(Path.Combine(root, f))))
-                File.Move(Path.Combine(root, file), Path.Combine(aside, file), true);
+            // Keep BetterSteamTools out of the bootstrapper run: its dialogs for the old build would block the update.
+            LoaderRecovery.SetAside(root, aside);
             Report(L.F("Установка Steam {0}…", target));
             var update = new ProcessStartInfo(exe) { UseShellExecute = false };
             foreach (var arg in new[] { "-forcesteamupdate", "-forcepackagedownload", "-overridepackageurl", mirror.Url, "-exitsteam" }) update.ArgumentList.Add(arg);
@@ -118,7 +106,7 @@ public static class SteamControl
         }
         finally
         {
-            RecoverLoader(settings);
+            RecoverLoader();
             // A rollback that failed before Steam was touched must not silently re-enable updates FST had blocked.
             // Once the updater ran, Steam may be half-installed and has to be able to repair itself, so updates stay on.
             if (!succeeded && hadFstBlock && !bootstrapperStarted) try { SteamDowngrade.BlockUpdates(root); } catch (Exception e) { JobService.Log("Не удалось вернуть steam.cfg: {0}", e.Message); }

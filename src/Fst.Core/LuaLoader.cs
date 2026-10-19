@@ -3,31 +3,38 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Tomlyn;
+using Tomlyn.Model;
 
 namespace Fst.Core;
 
-public sealed record LoaderState(string Version, Dictionary<string, string> Files);
+public sealed record LoaderState(string Version, Dictionary<string, string> Files, string? Source = null);
 
 public static class LuaLoader
 {
-    // Proxy DLLs that Lua loaders (OpenSteamTool, SteamTools) place next to steam.exe. Stock Steam ships none of them,
+    // Proxy DLLs that Lua loaders (BetterSteamTools, SteamTools) place next to steam.exe. Stock Steam ships none of them,
     // so without one of these files Steam never reads config/lua and installed games stay invisible in the library.
     public static readonly string[] Markers = ["OpenSteamTool.dll", "xinput1_4.dll", "dwmapi.dll", "hid.dll"];
-    public const string MissingMessage = "Lua-загрузчик не найден в папке Steam: без него Steam не видит добавленные игры. Установите OpenSteamTool (dwmapi.dll, xinput1_4.dll и OpenSteamTool.dll рядом с steam.exe) или выберите правильную папку Steam в «Каталогах».";
-    public const string UnsupportedMessage = "OpenSteamTool пока не поддерживает установленную версию Steam ({0}): Steam показывает ошибки OpenSteamTool, а добавленные игры появятся в библиотеке только после выхода обновления OpenSteamTool.";
+    public const string MissingMessage = "Lua-загрузчик не найден в папке Steam: без него Steam не видит добавленные игры. Установите BetterSteamTools (dwmapi.dll, xinput1_4.dll и OpenSteamTool.dll рядом с steam.exe) или выберите правильную папку Steam в «Каталогах».";
+    public const string UnsupportedMessage = "BetterSteamTools пока не поддерживает установленную версию Steam ({0}): Steam показывает ошибки BetterSteamTools, а добавленные игры появятся в библиотеке только после выхода обновления BetterSteamTools.";
     // Pinned release: the archive hash is checked before anything is written into the Steam folder.
-    public const string Version = "1.4.8";
-    public const string ArchiveUrl = "https://github.com/OpenSteam001/OpenSteamTool/releases/download/1.4.8/OpenSteamTool-1.4.8-Release.zip";
-    public const string ArchiveSha256 = "966654604d258d5d5383e72fec616df7957bf86f760c67eeb3d0e18cd882c710";
+    public const string Source = "madoiscool/BetterSteamTools";
+    public const string Version = "1.0.4";
+    public const string ArchiveUrl = "https://github.com/madoiscool/BetterSteamTools/releases/download/v1.0.4/OpenSteamTool-v1.0.4-Release.zip";
+    public const string ArchiveSha256 = "06a32ffbf86dbb281eefb143dc4d90a7710889aed550cc923c4ccdc5a8455e34";
     public static readonly string[] Files = ["dwmapi.dll", "xinput1_4.dll", "OpenSteamTool.dll"];
-    // OpenSteamTool hooks Steam through signatures (pattern) and an IPC spec (ipc) published per steamclient64.dll/steamui.dll build.
+    // BetterSteamTools hooks Steam through signatures (pattern) and an IPC spec (ipc) published per steamclient64.dll/steamui.dll build.
     private static readonly (string Channel, string Component, string File)[] Components = [("pattern", "steamclient", "steamclient64.dll"), ("pattern", "steamui", "steamui.dll"), ("ipc", "steamclient", "steamclient64.dll")];
-    private static readonly string[] TrackerMirrors = ["https://raw.githubusercontent.com/OpenSteam001/steam-monitor/{0}/{1}/{2}.toml", "https://cdn.jsdelivr.net/gh/OpenSteam001/steam-monitor@{0}/{1}/{2}.toml"];
+    private static readonly string[] TrackerMirrors = ["https://raw.githubusercontent.com/madoiscool/steam-monitor/{0}/{1}/{2}.toml", "https://cdn.jsdelivr.net/gh/madoiscool/steam-monitor@{0}/{1}/{2}.toml", "https://git.lua.tools/luatools/steam-monitor/raw/branch/{0}/{1}/{2}.toml"];
+
+    // BetterSteamTools reads this directory even without opensteamtool.toml. Keep the user's primary Lua path too.
+    public static string[] DefaultLuaDirectories(string steamRoot) => File.Exists(Path.Combine(steamRoot, "OpenSteamTool.dll"))
+        ? [Path.Combine(steamRoot, "config", "stplug-in")] : [];
 
     public static string? Find(string steamRoot) => string.IsNullOrWhiteSpace(steamRoot) ? null : Markers.FirstOrDefault(m => File.Exists(Path.Combine(steamRoot, m)));
     public static void Require(string steamRoot) { if (Find(steamRoot) == null) throw new InvalidOperationException(MissingMessage); }
 
-    /// <summary>True when no loader exists or an older OpenSteamTool installed by FST is still untouched.</summary>
+    /// <summary>True when no loader exists or an older BetterSteamTools installed by FST is still untouched.</summary>
     public static bool NeedsInstall(string steamRoot, string stateFile)
     {
         if (string.IsNullOrWhiteSpace(steamRoot)) return false;
@@ -35,7 +42,7 @@ public static class LuaLoader
         var state = ReadState(stateFile);
         if (state == null || ForeignLoader(steamRoot, state)) return false;
         if (MissingOwnedFiles(steamRoot, state)) return true;
-        return state.Version != Version && Files.Any(f => Owned(state, Path.Combine(steamRoot, f)));
+        return (state.Version != Version || state.Source != Source) && Files.Any(f => Owned(state, Path.Combine(steamRoot, f)));
     }
 
     /// <summary>True when Steam cannot load Lua: no loader at all, or a file of the FST-installed loader is missing.</summary>
@@ -51,10 +58,22 @@ public static class LuaLoader
     // A file FST installed has disappeared (for example, quarantined): proxies alone do not load Lua.
     private static bool MissingOwnedFiles(string steamRoot, LoaderState state) => state.Files.Keys.Any(f => !File.Exists(Path.Combine(steamRoot, f)));
 
-    /// <summary>Structural check mirroring OpenSteamTool: an empty or entry-less cached TOML is rejected and does not count as signatures.</summary>
-    public static bool UsableTrackerToml(string channel, string text) => channel == "ipc"
-        ? Regex.IsMatch(text, @"(?m)^\s*\[[A-Za-z_]\w*\]\s*$") && Regex.IsMatch(text, @"(?m)^\s*interface_id\s*=\s*\d+")
-        : Regex.IsMatch(text, @"(?m)^\s*\[0x[0-9A-Fa-f]{1,8}\]\s*$") && Regex.IsMatch(text, @"(?m)^\s*(?:rva|sig)\s*=\s*""[^""]+""");
+    /// <summary>Parse the entire cache before accepting entries: a valid prefix must not hide a truncated TOML document.</summary>
+    public static bool UsableTrackerToml(string channel, string text)
+    {
+        if (channel is not "pattern" and not "ipc" || string.IsNullOrWhiteSpace(text)) return false;
+        TomlTable? document;
+        try
+        {
+            Tomlyn.Parsing.SyntaxParser.ParseStrict(text, validate: true);
+            document = TomlSerializer.Deserialize<TomlTable>(text);
+        }
+        catch (TomlException) { return false; }
+        if (document == null) return false;
+        return document.Any(entry => entry.Value is TomlTable table && (channel == "ipc"
+            ? Regex.IsMatch(entry.Key, @"^[A-Za-z_]\w*$") && table.TryGetValue("interface_id", out var id) && id is long value && value is >= 0 and <= 255
+            : Regex.IsMatch(entry.Key, @"^0x[0-9A-Fa-f]{1,8}$") && new[] { "rva", "sig" }.Any(key => table.TryGetValue(key, out var field) && field is string s && !string.IsNullOrWhiteSpace(s))));
+    }
 
     public static async Task<string[]> DownloadAndInstallAsync(string steamRoot, string tempDirectory, string stateFile, HttpClient? httpClient = null, CancellationToken ct = default)
     {
@@ -72,11 +91,11 @@ public static class LuaLoader
                 request.Headers.UserAgent.ParseAdd("FST/0.1");
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, budget.Token);
                 response.EnsureSuccessStatusCode();
-                if (response.Content.Headers.ContentLength > 16L * 1024 * 1024) throw new InvalidDataException("Архив OpenSteamTool превышает допустимый размер.");
+                if (response.Content.Headers.ContentLength > 16L * 1024 * 1024) throw new InvalidDataException("Архив BetterSteamTools превышает допустимый размер.");
                 await using var source = await response.Content.ReadAsStreamAsync(budget.Token);
                 await using var target = File.Create(archive);
                 await source.CopyToAsync(target, budget.Token);
-                if (target.Length > 16L * 1024 * 1024) throw new InvalidDataException("Архив OpenSteamTool превышает допустимый размер.");
+                if (target.Length > 16L * 1024 * 1024) throw new InvalidDataException("Архив BetterSteamTools превышает допустимый размер.");
             }
             return Install(archive, steamRoot, stateFile);
         }
@@ -91,16 +110,16 @@ public static class LuaLoader
     {
         if (!File.Exists(Path.Combine(steamRoot, "steam.exe"))) throw new FileNotFoundException("steam.exe не найден.");
         using (var stream = File.OpenRead(archive))
-            if (!Convert.ToHexString(SHA256.HashData(stream)).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Контрольная сумма архива OpenSteamTool не совпадает.");
+            if (!Convert.ToHexString(SHA256.HashData(stream)).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Контрольная сумма архива BetterSteamTools не совпадает.");
         using var zip = ZipFile.OpenRead(archive);
         var payload = Files.Select(name =>
         {
-            var entry = zip.Entries.SingleOrDefault(e => e.FullName == name) ?? throw new InvalidDataException("В архиве OpenSteamTool нет " + name + ".");
+            var entry = zip.Entries.SingleOrDefault(e => e.FullName == name) ?? throw new InvalidDataException("В архиве BetterSteamTools нет " + name + ".");
             using var source = entry.Open();
             using var buffer = new MemoryStream();
             source.CopyTo(buffer);
             var bytes = buffer.ToArray();
-            if (bytes.Length < 64 || bytes[0] != 'M' || bytes[1] != 'Z') throw new InvalidDataException("Файл OpenSteamTool повреждён: " + name);
+            if (bytes.Length < 64 || bytes[0] != 'M' || bytes[1] != 'Z') throw new InvalidDataException("Файл BetterSteamTools повреждён: " + name);
             return (Name: name, Path: Path.Combine(steamRoot, name), Bytes: bytes);
         }).ToArray();
         if ((File.GetAttributes(steamRoot) & FileAttributes.ReparsePoint) != 0) throw new IOException("Каталог установки содержит ссылку: " + steamRoot);
@@ -117,7 +136,7 @@ public static class LuaLoader
                 {
                     // Only files FST wrote earlier and nobody changed since are upgraded; other DLLs belong to another loader or the user.
                     if (state == null || !Owned(state, file.Path)) continue;
-                    if (state.Version == version) { owned[file.Name] = state.Files[file.Name]; continue; }
+                    if (state.Version == version && state.Source == Source) { owned[file.Name] = state.Files[file.Name]; continue; }
                     // A DLL loaded by a running Steam cannot be overwritten or deleted, but it can be renamed.
                     old = file.Path + ".fst-old-" + Guid.NewGuid().ToString("N");
                     File.Move(file.Path, old);
@@ -131,7 +150,7 @@ public static class LuaLoader
             if (owned.Count > 0)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(stateFile))!);
-                File.WriteAllText(stateFile, JsonSerializer.Serialize(new LoaderState(version, owned)));
+                File.WriteAllText(stateFile, JsonSerializer.Serialize(new LoaderState(version, owned, Source)));
             }
         }
         catch
@@ -148,7 +167,7 @@ public static class LuaLoader
         return changes.Select(c => c.Path).ToArray();
     }
 
-    /// <summary>Steam DLLs that OpenSteamTool has no published signatures for. Network failures are not reported as unsupported.</summary>
+    /// <summary>Steam DLLs that BetterSteamTools has no published signatures for. Network failures are not reported as unsupported.</summary>
     public static async Task<string[]> UnsupportedSteamFilesAsync(string steamRoot, HttpClient? httpClient = null, CancellationToken ct = default)
     {
         if (!File.Exists(Path.Combine(steamRoot, "OpenSteamTool.dll"))) return [];
@@ -164,10 +183,12 @@ public static class LuaLoader
                 if (!File.Exists(path) || unsupported.Contains(file)) continue;
                 string hash;
                 using (var stream = File.OpenRead(path)) hash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-                // OpenSteamTool falls back to this cache even when the tracker answers 404, but only if the TOML has entries.
+                // BetterSteamTools falls back to this cache even when the tracker answers 404, but only if the TOML has entries.
                 var cache = Path.Combine(steamRoot, "opensteamtool", channel, component, hash + ".toml");
                 try { if (File.Exists(cache) && UsableTrackerToml(channel, File.ReadAllText(cache))) continue; }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+                var supported = false;
+                var missing = false;
                 foreach (var mirror in TrackerMirrors)
                 {
                     HttpStatusCode? status = null;
@@ -180,10 +201,11 @@ public static class LuaLoader
                     }
                     catch (HttpRequestException) { }
                     catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return unsupported.ToArray(); }
-                    if (status == HttpStatusCode.OK) break;
-                    // Mirrors serve the same tracker, so a 404 means the signatures are not published yet.
-                    if (status == HttpStatusCode.NotFound) { unsupported.Add(file); break; }
+                    if (status == HttpStatusCode.OK) { supported = true; break; }
+                    // BetterSteamTools also has an independent fallback repository; one mirror's 404 is not definitive.
+                    if (status == HttpStatusCode.NotFound) missing = true;
                 }
+                if (!supported && missing) unsupported.Add(file);
             }
             return unsupported.ToArray();
         }

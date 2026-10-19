@@ -43,11 +43,12 @@ public sealed class Settings
     }
     public string[] ActiveLuaDirectories()
     {
+        var defaults = LuaLoader.DefaultLuaDirectories(SteamRoot);
         var toml = Path.Combine(SteamRoot, "opensteamtool.toml");
-        if (!File.Exists(toml)) return [];
+        if (!File.Exists(toml)) return defaults;
         var section = Regex.Match(File.ReadAllText(toml), @"(?ms)^\[lua\]\s*(.*?)(?=^\[|\z)").Groups[1].Value;
         var paths = Regex.Match(section, @"(?m)^paths\s*=\s*\[([^\]]*)\]").Groups[1].Value;
-        return Regex.Matches(paths, "\"([^\"]+)\"").Select(m => m.Groups[1].Value.Replace(@"\\", @"\")).Select(p => Path.GetFullPath(Path.Combine(SteamRoot, p))).ToArray();
+        return defaults.Concat(Regex.Matches(paths, "\"([^\"]+)\"").Select(m => m.Groups[1].Value.Replace(@"\\", @"\")).Select(p => Path.GetFullPath(Path.Combine(SteamRoot, p)))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
     public InstallPlan Plan() => new(SteamRoot, LuaDirectory, DepotDirectory, AutoUpdate, MirrorManifests, ActiveLuaDirectories());
     public string[] LuaDirectories()=>new[]{LuaDirectory}.Concat(ActiveLuaDirectories()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

@@ -39,9 +39,9 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
                 var loaderInstalled = false;
                 if (LuaLoader.NeedsInstall(settings.SteamRoot, LoaderStateFile))
                 {
-                    jobs[id] = new("installing", L.T("Установка Lua-загрузчика OpenSteamTool…"));
+                    jobs[id] = new("installing", L.T("Установка Lua-загрузчика BetterSteamTools…"));
                     try { loaderInstalled = await EnsureLoaderAsync(settings); }
-                    catch (Exception e) { Log("Не удалось установить OpenSteamTool: {0}", e.Message); }
+                    catch (Exception e) { Log("Не удалось установить BetterSteamTools: {0}", e.Message); }
                 }
                 // Leftover proxies without OpenSteamTool.dll do not load Lua either: stop before the Ryuu download.
                 if (LuaLoader.Broken(settings.SteamRoot, LoaderStateFile)) throw new InvalidOperationException(LuaLoader.MissingMessage);
@@ -74,7 +74,7 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
     }
     public static string LoaderStateFile => Path.Combine(Settings.DataRoot, "opensteamtool.json");
     private static readonly SemaphoreSlim loaderGate = new(1, 1);
-    /// <summary>Installs OpenSteamTool when no Lua loader is present, or upgrades the copy FST installed earlier. Returns true if files were written.</summary>
+    /// <summary>Installs BetterSteamTools when no Lua loader is present, or upgrades the copy FST installed earlier. Returns true if files were written.</summary>
     public static async Task<bool> EnsureLoaderAsync(Settings settings, CancellationToken ct = default)
     {
         await loaderGate.WaitAsync(ct);
@@ -82,14 +82,14 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
         {
             if (!LuaLoader.NeedsInstall(settings.SteamRoot, LoaderStateFile)) return false;
             var files = await LuaLoader.DownloadAndInstallAsync(settings.SteamRoot, Settings.DataRoot, LoaderStateFile, ct: ct);
-            if (files.Length > 0) Log("OpenSteamTool {0} установлен в папку Steam: {1}", LuaLoader.Version, string.Join(", ", files.Select(Path.GetFileName)));
+            if (files.Length > 0) Log("BetterSteamTools {0} установлен в папку Steam: {1}", LuaLoader.Version, string.Join(", ", files.Select(Path.GetFileName)));
             return files.Length > 0;
         }
         finally { loaderGate.Release(); }
     }
     /// <summary>Steam DLLs found unsupported by the last compatibility check; the main window offers a Steam rollback while it is not empty.</summary>
     public static volatile string[] UnsupportedSteamFiles = [];
-    /// <summary>Logs and returns a warning when OpenSteamTool has no signatures for the installed Steam build yet.</summary>
+    /// <summary>Logs and returns a warning when BetterSteamTools has no signatures for the installed Steam build yet.</summary>
     public static async Task<string?> UnsupportedSteamWarningAsync(Settings settings, CancellationToken ct = default)
     {
         string[] files;

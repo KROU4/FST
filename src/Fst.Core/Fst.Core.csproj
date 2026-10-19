@@ -1,3 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Tomlyn" Version="2.10.1" />
+    <EmbeddedResource Include="../../packaging/linux/LICENSES/Tomlyn-BSD-2-Clause.txt" LogicalName="Fst.Core.Licenses.Tomlyn.txt" />
+  </ItemGroup>
 </Project>

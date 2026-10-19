@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace Fst.Core;
 
-/// <summary>Rolls the Steam client back to the newest stable build OpenSteamTool publishes signatures for.</summary>
+/// <summary>Rolls the Steam client back to the newest stable build BetterSteamTools publishes signatures for.</summary>
 public static class SteamDowngrade
 {
     public const string ManifestName = "steam_client_win64";
@@ -15,7 +15,7 @@ public static class SteamDowngrade
     // Written to steam.cfg; FST only removes a steam.cfg whose content is exactly this.
     public const string UpdateBlock = "BootStrapperInhibitAll=enable\r\nBootStrapperForceSelfUpdate=disable\r\n";
     // steam-monitor states the newest stable build it covers in each channel's README.
-    public static readonly string[] TrackerReadmes = ["https://raw.githubusercontent.com/OpenSteam001/steam-monitor/pattern/README.md", "https://raw.githubusercontent.com/OpenSteam001/steam-monitor/ipc/README.md"];
+    public static readonly string[] TrackerReadmes = ["https://raw.githubusercontent.com/madoiscool/steam-monitor/pattern/README.md", "https://raw.githubusercontent.com/madoiscool/steam-monitor/ipc/README.md"];
     // Valve serves only the current manifest; older ones come from the Wayback Machine while packages still come from Valve.
     private const string ArchiveIndex = "https://web.archive.org/cdx/search/cdx?url=media.steampowered.com/client/steam_client_win64&output=json&fl=timestamp&filter=statuscode:200&collapse=digest&from={0}&limit=12";
     private const string ArchiveFile = "https://web.archive.org/web/{0}id_/http://media.steampowered.com/client/steam_client_win64";
@@ -33,7 +33,7 @@ public static class SteamDowngrade
     {
         var builds = new List<ulong>();
         foreach (var url in TrackerReadmes)
-            builds.Add(ulong.Parse(StableFromReadme(await GetStringAsync(client, url, ct)) ?? throw new InvalidDataException("Трекер OpenSteamTool не сообщил поддерживаемую версию Steam.")));
+            builds.Add(ulong.Parse(StableFromReadme(await GetStringAsync(client, url, ct)) ?? throw new InvalidDataException("Трекер BetterSteamTools не сообщил поддерживаемую версию Steam.")));
         // Signatures and IPC specs are published per build, so the older of the two newest builds is covered by both.
         return builds.Min().ToString();
     }
