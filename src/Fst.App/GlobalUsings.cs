@@ -1,1 +1,1 @@
-global using L=Fst.Core.Localization;
+global using L = Fst.Core.Localization;

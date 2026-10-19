@@ -163,6 +163,8 @@ bash tools/Build-Linux.sh
 
 ## Проверки и статус Linux
 
+Форматирование C# задаётся в `.editorconfig`. Применить его: `pwsh -File tools/Format-Code.ps1`; проверить без изменений: `pwsh -File tools/Format-Code.ps1 -Check`. Команда обрабатывает отслеживаемые Git C#-файлы, включая Windows/Linux UI и тесты; CI требует успешной проверки на обеих платформах.
+
 ```bash
 dotnet run --project tests/Fst.Tests/Fst.Tests.csproj -c Release
 ./release/fst-linux-x64/app/fst --self-test

@@ -32,23 +32,32 @@ public static class LuaLoader
         ? [Path.Combine(steamRoot, "config", "stplug-in")] : [];
 
     public static string? Find(string steamRoot) => string.IsNullOrWhiteSpace(steamRoot) ? null : Markers.FirstOrDefault(m => File.Exists(Path.Combine(steamRoot, m)));
-    public static void Require(string steamRoot) { if (Find(steamRoot) == null) throw new InvalidOperationException(MissingMessage); }
+    public static void Require(string steamRoot)
+    {
+        if (Find(steamRoot) == null)
+            throw new InvalidOperationException(MissingMessage);
+    }
 
     /// <summary>True when no loader exists or an older BetterSteamTools installed by FST is still untouched.</summary>
     public static bool NeedsInstall(string steamRoot, string stateFile)
     {
-        if (string.IsNullOrWhiteSpace(steamRoot)) return false;
-        if (Find(steamRoot) == null) return true;
+        if (string.IsNullOrWhiteSpace(steamRoot))
+            return false;
+        if (Find(steamRoot) == null)
+            return true;
         var state = ReadState(stateFile);
-        if (state == null || ForeignLoader(steamRoot, state)) return false;
-        if (MissingOwnedFiles(steamRoot, state)) return true;
+        if (state == null || ForeignLoader(steamRoot, state))
+            return false;
+        if (MissingOwnedFiles(steamRoot, state))
+            return true;
         return (state.Version != Version || state.Source != Source) && Files.Any(f => Owned(state, Path.Combine(steamRoot, f)));
     }
 
     /// <summary>True when Steam cannot load Lua: no loader at all, or a file of the FST-installed loader is missing.</summary>
     public static bool Broken(string steamRoot, string stateFile)
     {
-        if (Find(steamRoot) == null) return true;
+        if (Find(steamRoot) == null)
+            return true;
         var state = ReadState(stateFile);
         return state != null && !ForeignLoader(steamRoot, state) && MissingOwnedFiles(steamRoot, state);
     }
@@ -61,7 +70,8 @@ public static class LuaLoader
     /// <summary>Parse the entire cache before accepting entries: a valid prefix must not hide a truncated TOML document.</summary>
     public static bool UsableTrackerToml(string channel, string text)
     {
-        if (channel is not "pattern" and not "ipc" || string.IsNullOrWhiteSpace(text)) return false;
+        if (channel is not "pattern" and not "ipc" || string.IsNullOrWhiteSpace(text))
+            return false;
         TomlTable? document;
         try
         {
@@ -69,7 +79,8 @@ public static class LuaLoader
             document = TomlSerializer.Deserialize<TomlTable>(text);
         }
         catch (TomlException) { return false; }
-        if (document == null) return false;
+        if (document == null)
+            return false;
         return document.Any(entry => entry.Value is TomlTable table && (channel == "ipc"
             ? Regex.IsMatch(entry.Key, @"^[A-Za-z_]\w*$") && table.TryGetValue("interface_id", out var id) && id is long value && value is >= 0 and <= 255
             : Regex.IsMatch(entry.Key, @"^0x[0-9A-Fa-f]{1,8}$") && new[] { "rva", "sig" }.Any(key => table.TryGetValue(key, out var field) && field is string s && !string.IsNullOrWhiteSpace(s))));
@@ -77,7 +88,8 @@ public static class LuaLoader
 
     public static async Task<string[]> DownloadAndInstallAsync(string steamRoot, string tempDirectory, string stateFile, HttpClient? httpClient = null, CancellationToken ct = default)
     {
-        if (!File.Exists(Path.Combine(steamRoot, "steam.exe"))) throw new FileNotFoundException("steam.exe не найден.");
+        if (!File.Exists(Path.Combine(steamRoot, "steam.exe")))
+            throw new FileNotFoundException("steam.exe не найден.");
         Directory.CreateDirectory(tempDirectory);
         var archive = Path.Combine(tempDirectory, "opensteamtool-" + Guid.NewGuid().ToString("N") + ".zip");
         var client = httpClient ?? new HttpClient();
@@ -91,26 +103,35 @@ public static class LuaLoader
                 request.Headers.UserAgent.ParseAdd("FST/0.1");
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, budget.Token);
                 response.EnsureSuccessStatusCode();
-                if (response.Content.Headers.ContentLength > 16L * 1024 * 1024) throw new InvalidDataException("Архив BetterSteamTools превышает допустимый размер.");
+                if (response.Content.Headers.ContentLength > 16L * 1024 * 1024)
+                    throw new InvalidDataException("Архив BetterSteamTools превышает допустимый размер.");
                 await using var source = await response.Content.ReadAsStreamAsync(budget.Token);
                 await using var target = File.Create(archive);
                 await source.CopyToAsync(target, budget.Token);
-                if (target.Length > 16L * 1024 * 1024) throw new InvalidDataException("Архив BetterSteamTools превышает допустимый размер.");
+                if (target.Length > 16L * 1024 * 1024)
+                    throw new InvalidDataException("Архив BetterSteamTools превышает допустимый размер.");
             }
             return Install(archive, steamRoot, stateFile);
         }
         finally
         {
-            if (httpClient == null) client.Dispose();
-            try { File.Delete(archive); } catch { }
+            if (httpClient == null)
+                client.Dispose();
+            try
+            {
+                File.Delete(archive);
+            }
+            catch { }
         }
     }
 
     public static string[] Install(string archive, string steamRoot, string stateFile, string expectedSha256 = ArchiveSha256, string version = Version)
     {
-        if (!File.Exists(Path.Combine(steamRoot, "steam.exe"))) throw new FileNotFoundException("steam.exe не найден.");
+        if (!File.Exists(Path.Combine(steamRoot, "steam.exe")))
+            throw new FileNotFoundException("steam.exe не найден.");
         using (var stream = File.OpenRead(archive))
-            if (!Convert.ToHexString(SHA256.HashData(stream)).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Контрольная сумма архива BetterSteamTools не совпадает.");
+            if (!Convert.ToHexString(SHA256.HashData(stream)).Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Контрольная сумма архива BetterSteamTools не совпадает.");
         using var zip = ZipFile.OpenRead(archive);
         var payload = Files.Select(name =>
         {
@@ -119,10 +140,12 @@ public static class LuaLoader
             using var buffer = new MemoryStream();
             source.CopyTo(buffer);
             var bytes = buffer.ToArray();
-            if (bytes.Length < 64 || bytes[0] != 'M' || bytes[1] != 'Z') throw new InvalidDataException("Файл BetterSteamTools повреждён: " + name);
+            if (bytes.Length < 64 || bytes[0] != 'M' || bytes[1] != 'Z')
+                throw new InvalidDataException("Файл BetterSteamTools повреждён: " + name);
             return (Name: name, Path: Path.Combine(steamRoot, name), Bytes: bytes);
         }).ToArray();
-        if ((File.GetAttributes(steamRoot) & FileAttributes.ReparsePoint) != 0) throw new IOException("Каталог установки содержит ссылку: " + steamRoot);
+        if ((File.GetAttributes(steamRoot) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Каталог установки содержит ссылку: " + steamRoot);
         RemoveReplaced(steamRoot);
         var state = ReadState(stateFile);
         var owned = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -135,15 +158,24 @@ public static class LuaLoader
                 if (File.Exists(file.Path))
                 {
                     // Only files FST wrote earlier and nobody changed since are upgraded; other DLLs belong to another loader or the user.
-                    if (state == null || !Owned(state, file.Path)) continue;
-                    if (state.Version == version && state.Source == Source) { owned[file.Name] = state.Files[file.Name]; continue; }
+                    if (state == null || !Owned(state, file.Path))
+                        continue;
+                    if (state.Version == version && state.Source == Source)
+                    {
+                        owned[file.Name] = state.Files[file.Name];
+                        continue;
+                    }
                     // A DLL loaded by a running Steam cannot be overwritten or deleted, but it can be renamed.
                     old = file.Path + ".fst-old-" + Guid.NewGuid().ToString("N");
                     File.Move(file.Path, old);
                 }
                 changes.Add((file.Path, old));
                 var temp = file.Path + ".fst-" + Guid.NewGuid().ToString("N");
-                try { File.WriteAllBytes(temp, file.Bytes); File.Move(temp, file.Path); }
+                try
+                {
+                    File.WriteAllBytes(temp, file.Bytes);
+                    File.Move(temp, file.Path);
+                }
                 finally { if (File.Exists(temp)) File.Delete(temp); }
                 owned[file.Name] = Convert.ToHexString(SHA256.HashData(file.Bytes));
             }
@@ -157,9 +189,19 @@ public static class LuaLoader
         {
             foreach (var change in changes.AsEnumerable().Reverse())
             {
-                try { if (File.Exists(change.Path)) File.Delete(change.Path); } catch { }
+                try
+                {
+                    if (File.Exists(change.Path))
+                        File.Delete(change.Path);
+                }
+                catch { }
                 // Restore the original even if the new file could not be deleted; overwriting is still possible when it is not locked.
-                try { if (change.Old != null) File.Move(change.Old, change.Path, true); } catch { }
+                try
+                {
+                    if (change.Old != null)
+                        File.Move(change.Old, change.Path, true);
+                }
+                catch { }
             }
             throw;
         }
@@ -170,7 +212,8 @@ public static class LuaLoader
     /// <summary>Steam DLLs that BetterSteamTools has no published signatures for. Network failures are not reported as unsupported.</summary>
     public static async Task<string[]> UnsupportedSteamFilesAsync(string steamRoot, HttpClient? httpClient = null, CancellationToken ct = default)
     {
-        if (!File.Exists(Path.Combine(steamRoot, "OpenSteamTool.dll"))) return [];
+        if (!File.Exists(Path.Combine(steamRoot, "OpenSteamTool.dll")))
+            return [];
         var client = httpClient ?? new HttpClient();
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
         budget.CancelAfter(TimeSpan.FromSeconds(15));
@@ -180,12 +223,18 @@ public static class LuaLoader
             foreach (var (channel, component, file) in Components)
             {
                 var path = Path.Combine(steamRoot, file);
-                if (!File.Exists(path) || unsupported.Contains(file)) continue;
+                if (!File.Exists(path) || unsupported.Contains(file))
+                    continue;
                 string hash;
-                using (var stream = File.OpenRead(path)) hash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+                using (var stream = File.OpenRead(path))
+                    hash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
                 // BetterSteamTools falls back to this cache even when the tracker answers 404, but only if the TOML has entries.
                 var cache = Path.Combine(steamRoot, "opensteamtool", channel, component, hash + ".toml");
-                try { if (File.Exists(cache) && UsableTrackerToml(channel, File.ReadAllText(cache))) continue; }
+                try
+                {
+                    if (File.Exists(cache) && UsableTrackerToml(channel, File.ReadAllText(cache)))
+                        continue;
+                }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
                 var supported = false;
                 var missing = false;
@@ -201,11 +250,17 @@ public static class LuaLoader
                     }
                     catch (HttpRequestException) { }
                     catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return unsupported.ToArray(); }
-                    if (status == HttpStatusCode.OK) { supported = true; break; }
+                    if (status == HttpStatusCode.OK)
+                    {
+                        supported = true;
+                        break;
+                    }
                     // BetterSteamTools also has an independent fallback repository; one mirror's 404 is not definitive.
-                    if (status == HttpStatusCode.NotFound) missing = true;
+                    if (status == HttpStatusCode.NotFound)
+                        missing = true;
                 }
-                if (!supported && missing) unsupported.Add(file);
+                if (!supported && missing)
+                    unsupported.Add(file);
             }
             return unsupported.ToArray();
         }
@@ -214,15 +269,23 @@ public static class LuaLoader
 
     private static LoaderState? ReadState(string stateFile)
     {
-        try { return File.Exists(stateFile) ? JsonSerializer.Deserialize<LoaderState>(File.ReadAllText(stateFile)) : null; }
+        try
+        {
+            return File.Exists(stateFile) ? JsonSerializer.Deserialize<LoaderState>(File.ReadAllText(stateFile)) : null;
+        }
         catch (JsonException) { return null; }
     }
 
     private static bool Owned(LoaderState state, string path)
     {
-        if (!File.Exists(path) || !state.Files.TryGetValue(Path.GetFileName(path), out var expected)) return false;
+        if (!File.Exists(path) || !state.Files.TryGetValue(Path.GetFileName(path), out var expected))
+            return false;
         // The file may be renamed by a concurrent upgrade; a file that cannot be read is not treated as FST-owned.
-        try { using var stream = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(stream)).Equals(expected, StringComparison.OrdinalIgnoreCase); }
+        try
+        {
+            using var stream = File.OpenRead(path);
+            return Convert.ToHexString(SHA256.HashData(stream)).Equals(expected, StringComparison.OrdinalIgnoreCase);
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
     }
 
@@ -230,6 +293,11 @@ public static class LuaLoader
     {
         foreach (var name in Files)
             foreach (var old in Directory.EnumerateFiles(steamRoot, name + ".fst-old-*"))
-                try { File.Delete(old); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                try
+                {
+                    File.Delete(old);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
     }
 }

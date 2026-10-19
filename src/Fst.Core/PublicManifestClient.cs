@@ -14,7 +14,9 @@ public sealed class PublicManifestClient : IDisposable
     private static readonly string[] Repositories =
         ["SteamAutoCracks/ManifestHub", "bsinwhg/ManifestHub", "steamtools-games/ManifestHub3"];
     private readonly HttpClient client = new(new HttpClientHandler { AllowAutoRedirect = true, UseCookies = false })
-        { Timeout = TimeSpan.FromMinutes(3) };
+    {
+        Timeout = TimeSpan.FromMinutes(3)
+    };
 
     public async Task<DownloadResult> DownloadAsync(string appId, string target, string cacheRoot,
         bool allowStale = false, CancellationToken ct = default)
@@ -35,13 +37,17 @@ public sealed class PublicManifestClient : IDisposable
                 try
                 {
                     var freshness = Freshness(ValidateArchive(cache, appId), expected);
-                    if (freshness == "stale") stale.Add((cache, repository, true));
+                    if (freshness == "stale")
+                        stale.Add((cache, repository, true));
                     else if (DateTime.UtcNow - File.GetLastWriteTimeUtc(cache) <= CacheTtl)
                         return CopyResult(cache, target, repository, true, freshness);
-                    else olderCache.Add((cache, repository, freshness));
+                    else
+                        olderCache.Add((cache, repository, freshness));
                 }
                 catch (Exception ex) when (ex is IOException or InvalidDataException or DecoderFallbackException)
-                { failures.Add(repository + ": повреждённый кэш"); }
+                {
+                    failures.Add(repository + ": повреждённый кэш");
+                }
             }
             var temporary = cache + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
@@ -65,13 +71,16 @@ public sealed class PublicManifestClient : IDisposable
                 var freshness = Freshness(ValidateArchive(temporary, appId), expected);
                 olderCache.RemoveAll(item => item.Path == cache);
                 File.Move(temporary, cache, true);
-                if (freshness != "stale") return CopyResult(cache, target, repository, false, freshness);
+                if (freshness != "stale")
+                    return CopyResult(cache, target, repository, false, freshness);
                 stale.RemoveAll(item => item.Path == cache);
                 stale.Add((cache, repository, false));
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or DecoderFallbackException ||
                                        ex is OperationCanceledException && !ct.IsCancellationRequested)
-            { failures.Add(repository + ": " + ex.Message); }
+            {
+                failures.Add(repository + ": " + ex.Message);
+            }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
         // An expired archive can still be used offline; the metadata label stays explicit.
@@ -108,22 +117,27 @@ public sealed class PublicManifestClient : IDisposable
             await CopyBoundedAsync(input, bytes, 16L * 1024 * 1024, timeout.Token);
             using var json = JsonDocument.Parse(bytes.ToArray());
             if (!json.RootElement.TryGetProperty("data", out var data) || !data.TryGetProperty(appId, out var app) ||
-                !app.TryGetProperty("depots", out var depots) || depots.ValueKind != JsonValueKind.Object) return null;
+                !app.TryGetProperty("depots", out var depots) || depots.ValueKind != JsonValueKind.Object)
+                return null;
             var result = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var depot in depots.EnumerateObject())
             {
                 if (!Regex.IsMatch(depot.Name, "^[0-9]+$") || depot.Value.ValueKind != JsonValueKind.Object ||
                     !depot.Value.TryGetProperty("manifests", out var manifests) || manifests.ValueKind != JsonValueKind.Object ||
                     !manifests.TryGetProperty("public", out var branch) || branch.ValueKind != JsonValueKind.Object ||
-                    !branch.TryGetProperty("gid", out var gid)) continue;
+                    !branch.TryGetProperty("gid", out var gid))
+                    continue;
                 var value = gid.ToString();
-                if (Regex.IsMatch(value, "^[1-9][0-9]*$")) result[depot.Name] = value;
+                if (Regex.IsMatch(value, "^[1-9][0-9]*$"))
+                    result[depot.Name] = value;
             }
             return result.Count == 0 ? null : result;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or JsonException or InvalidDataException ||
                                    ex is OperationCanceledException && !ct.IsCancellationRequested)
-        { return null; }
+        {
+            return null;
+        }
     }
 
     private static HashSet<string> ValidateArchive(string path, string appId)
@@ -133,7 +147,8 @@ public sealed class PublicManifestClient : IDisposable
             throw new InvalidDataException("Источник не вернул допустимый ZIP.");
         file.Position = 0;
         using var zip = new ZipArchive(file, ZipArchiveMode.Read);
-        if (zip.Entries.Count > 4096) throw new InvalidDataException("В ZIP слишком много файлов.");
+        if (zip.Entries.Count > 4096)
+            throw new InvalidDataException("В ZIP слишком много файлов.");
         long total = 0;
         ZipArchiveEntry? lua = null;
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -144,11 +159,15 @@ public sealed class PublicManifestClient : IDisposable
                 throw new InvalidDataException("Небезопасный путь в ZIP.");
             if (entry.Length > 64L * 1024 * 1024 || (total += entry.Length) > MaximumDownload)
                 throw new InvalidDataException("Распакованный ZIP превышает допустимый размер.");
-            if (entry.Name.Length == 0) continue;
-            if (!names.Add(entry.Name)) throw new InvalidDataException("Повторяющееся имя файла в ZIP.");
-            if (entry.Name == appId + ".lua") lua = entry;
+            if (entry.Name.Length == 0)
+                continue;
+            if (!names.Add(entry.Name))
+                throw new InvalidDataException("Повторяющееся имя файла в ZIP.");
+            if (entry.Name == appId + ".lua")
+                lua = entry;
         }
-        if (lua == null || lua.Length > 4L * 1024 * 1024) throw new InvalidDataException("В ZIP нет Lua запрошенной игры.");
+        if (lua == null || lua.Length > 4L * 1024 * 1024)
+            throw new InvalidDataException("В ZIP нет Lua запрошенной игры.");
         using var stream = lua.Open();
         using var reader = new StreamReader(stream, new UTF8Encoding(false, true), true);
         var text = reader.ReadToEnd();
@@ -167,7 +186,11 @@ public sealed class PublicManifestClient : IDisposable
         if (!Path.GetFullPath(archive).Equals(fullTarget, StringComparison.OrdinalIgnoreCase))
         {
             var temporary = fullTarget + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try { File.Copy(archive, temporary); File.Move(temporary, fullTarget, true); }
+            try
+            {
+                File.Copy(archive, temporary);
+                File.Move(temporary, fullTarget, true);
+            }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
         return new(source, cached, freshness);
@@ -180,7 +203,8 @@ public sealed class PublicManifestClient : IDisposable
         int count;
         while ((count = await input.ReadAsync(buffer, ct)) != 0)
         {
-            if ((total += count) > maximum) throw new InvalidDataException("Превышен допустимый размер загрузки.");
+            if ((total += count) > maximum)
+                throw new InvalidDataException("Превышен допустимый размер загрузки.");
             await output.WriteAsync(buffer.AsMemory(0, count), ct);
         }
     }

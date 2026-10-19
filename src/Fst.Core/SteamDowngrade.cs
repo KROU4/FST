@@ -47,9 +47,14 @@ public static class SteamDowngrade
         {
             var manifest = await GetStringAsync(client, string.Format(ArchiveFile, row[0].GetString()), ct);
             var found = ManifestVersion(manifest);
-            if (found == version) { await RequirePackagesAsync(manifest, client, ct); return manifest; }
+            if (found == version)
+            {
+                await RequirePackagesAsync(manifest, client, ct);
+                return manifest;
+            }
             // Snapshots are in ascending order: once a newer build shows up, this one was never archived.
-            if (found != null && ulong.Parse(found) > ulong.Parse(version)) break;
+            if (found != null && ulong.Parse(found) > ulong.Parse(version))
+                break;
         }
         throw new InvalidDataException("Список файлов этой версии Steam не найден в архиве.");
     }
@@ -57,12 +62,14 @@ public static class SteamDowngrade
     private static async Task RequirePackagesAsync(string manifest, HttpClient client, CancellationToken ct)
     {
         var packages = ManifestPackages(manifest);
-        if (packages.Length == 0 || packages.Any(p => !Regex.IsMatch(p, @"^[\w.\-]+$"))) throw new InvalidDataException("Повреждён список файлов Steam.");
+        if (packages.Length == 0 || packages.Any(p => !Regex.IsMatch(p, @"^[\w.\-]+$")))
+            throw new InvalidDataException("Повреждён список файлов Steam.");
         foreach (var package in packages)
         {
             using var request = new HttpRequestMessage(HttpMethod.Head, PackageCdn + package);
             using var response = await client.SendAsync(request, ct);
-            if (response.StatusCode != HttpStatusCode.OK) throw new InvalidDataException("Valve больше не раздаёт файлы этой версии Steam.");
+            if (response.StatusCode != HttpStatusCode.OK)
+                throw new InvalidDataException("Valve больше не раздаёт файлы этой версии Steam.");
         }
     }
 
@@ -98,14 +105,16 @@ public static class SteamDowngrade
     /// <summary>Writes FST's steam.cfg. A steam.cfg written by someone else is left as is.</summary>
     public static bool BlockUpdates(string steamRoot)
     {
-        if (File.Exists(ConfigPath(steamRoot))) return UpdatesBlockedByFst(steamRoot);
+        if (File.Exists(ConfigPath(steamRoot)))
+            return UpdatesBlockedByFst(steamRoot);
         File.WriteAllText(ConfigPath(steamRoot), UpdateBlock);
         return true;
     }
     /// <summary>Removes steam.cfg only if FST wrote it.</summary>
     public static bool AllowUpdates(string steamRoot)
     {
-        if (!UpdatesBlockedByFst(steamRoot)) return false;
+        if (!UpdatesBlockedByFst(steamRoot))
+            return false;
         File.Delete(ConfigPath(steamRoot));
         return true;
     }
@@ -142,7 +151,10 @@ public sealed class PackageMirror : IAsyncDisposable
         while (!stop.IsCancellationRequested)
         {
             TcpClient connection;
-            try { connection = await listener.AcceptTcpClientAsync(stop.Token); }
+            try
+            {
+                connection = await listener.AcceptTcpClientAsync(stop.Token);
+            }
             catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException or SocketException) { break; }
             var task = ServeAsync(connection);
             active[task] = 0;
@@ -164,22 +176,29 @@ public sealed class PackageMirror : IAsyncDisposable
                     head = await ReadHeadAsync(stream, headBudget.Token);
                 }
                 var parts = head.Split(' ', 3);
-                if (parts.Length < 3) return;
+                if (parts.Length < 3)
+                    return;
                 Interlocked.Increment(ref requests);
                 var method = parts[0];
                 // Steam asks for files right under the override URL; anything with path segments is refused.
                 var name = Uri.UnescapeDataString(parts[1].Split('?')[0]).TrimStart('/');
-                if (method is not "GET" and not "HEAD" || !Regex.IsMatch(name, @"^[\w.\-]+$")) { await WriteHeadAsync(stream, 404, "Not Found", 0); return; }
+                if (method is not "GET" and not "HEAD" || !Regex.IsMatch(name, @"^[\w.\-]+$"))
+                {
+                    await WriteHeadAsync(stream, 404, "Not Found", 0);
+                    return;
+                }
                 if (name == SteamDowngrade.ManifestName)
                 {
                     await WriteHeadAsync(stream, 200, "OK", manifest.Length);
-                    if (method == "GET") await stream.WriteAsync(manifest, stop.Token);
+                    if (method == "GET")
+                        await stream.WriteAsync(manifest, stop.Token);
                     return;
                 }
                 using var request = new HttpRequestMessage(method == "HEAD" ? HttpMethod.Head : HttpMethod.Get, upstream + name);
                 using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, stop.Token);
                 await WriteHeadAsync(stream, (int)response.StatusCode, response.ReasonPhrase ?? "", response.Content.Headers.ContentLength);
-                if (method == "GET") await (await response.Content.ReadAsStreamAsync(stop.Token)).CopyToAsync(stream, stop.Token);
+                if (method == "GET")
+                    await (await response.Content.ReadAsStreamAsync(stop.Token)).CopyToAsync(stream, stop.Token);
             }
             // A connection handler runs unobserved: any failure only ends this one transfer, and Steam retries or reports it.
             catch (Exception) { }
@@ -192,9 +211,11 @@ public sealed class PackageMirror : IAsyncDisposable
         var one = new byte[1];
         while (buffer.Count < 16 * 1024)
         {
-            if (await stream.ReadAsync(one, ct) == 0) break;
+            if (await stream.ReadAsync(one, ct) == 0)
+                break;
             buffer.Add(one[0]);
-            if (buffer.Count >= 4 && buffer[^4] == '\r' && buffer[^3] == '\n' && buffer[^2] == '\r' && buffer[^1] == '\n') return Encoding.ASCII.GetString(buffer.ToArray());
+            if (buffer.Count >= 4 && buffer[^4] == '\r' && buffer[^3] == '\n' && buffer[^2] == '\r' && buffer[^1] == '\n')
+                return Encoding.ASCII.GetString(buffer.ToArray());
         }
         throw new InvalidDataException("Malformed HTTP request.");
     }
@@ -209,9 +230,17 @@ public sealed class PackageMirror : IAsyncDisposable
     {
         stop.Cancel();
         listener.Stop();
-        try { await loop; } catch { }
+        try
+        {
+            await loop;
+        }
+        catch { }
         // Let cancelled transfers finish before their token source and the shared HttpClient go away.
-        try { await Task.WhenAll(active.Keys); } catch { }
+        try
+        {
+            await Task.WhenAll(active.Keys);
+        }
+        catch { }
         stop.Dispose();
     }
 }

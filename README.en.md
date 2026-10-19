@@ -119,3 +119,5 @@ On Windows, also run `dotnet run --project tests/Fst.Windows.Tests/Fst.Windows.T
 For troubleshooting, open Logs and check Steam paths, loader installation/compatibility and the local CEF endpoint on `127.0.0.1:8080`. Report OS, FST version, Steam installation type and the error in [Issues](https://github.com/superhe11/FST/issues); do not upload keys, cookies or credential files.
 
 Dependency notices: [packaging/linux/LICENSES](packaging/linux/LICENSES).
+
+C# formatting is defined in `.editorconfig`. Apply it with `pwsh -File tools/Format-Code.ps1`, or verify without changes with `pwsh -File tools/Format-Code.ps1 -Check`. The command covers Git-tracked C# sources, including both desktop UIs and tests. CI enforces this check on Windows and Linux.
