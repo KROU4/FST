@@ -49,6 +49,20 @@ public static class SteamControl
         if (Process.GetProcessesByName("steam").Any()) throw new InvalidOperationException(failure);
     }
 
+    /// <summary>Puts loader DLLs set aside by a rollback back into the Steam folder, also after FST was killed mid-rollback.</summary>
+    public static void RecoverLoader(Settings settings)
+    {
+        var aside = Path.Combine(Settings.DataRoot, "loader-aside");
+        foreach (var file in LuaLoader.Files)
+        {
+            var source = Path.Combine(aside, file);
+            if (!File.Exists(source)) continue;
+            // A file that reappeared meanwhile (reinstalled loader) wins; the stale copy is dropped.
+            try { var target = Path.Combine(settings.SteamRoot, file); if (File.Exists(target)) File.Delete(source); else File.Move(source, target); }
+            catch (Exception e) { JobService.Log("Не удалось вернуть {0}: {1}", file, e.Message); }
+        }
+    }
+
     /// <summary>
     /// Installs the newest stable Steam build OpenSteamTool supports and blocks Steam self-updates with steam.cfg.
     /// Packages come from Valve's CDN through a loopback mirror that pins the archived client manifest.
@@ -61,10 +75,10 @@ public static class SteamControl
         var root = settings.SteamRoot;
         var exe = Path.Combine(root, "steam.exe");
         var aside = Path.Combine(Settings.DataRoot, "loader-aside");
-        var moved = new List<string>();
         var stopped = false;
         var succeeded = false;
         var hadFstBlock = false;
+        var bootstrapperStarted = false;
         try
         {
             if (!File.Exists(exe)) throw new FileNotFoundException("steam.exe не найден.");
@@ -86,14 +100,12 @@ public static class SteamControl
             // Keep OpenSteamTool out of the bootstrapper run: its dialogs for the old build would block the update.
             Directory.CreateDirectory(aside);
             foreach (var file in LuaLoader.Files.Where(f => File.Exists(Path.Combine(root, f))))
-            {
                 File.Move(Path.Combine(root, file), Path.Combine(aside, file), true);
-                moved.Add(file);
-            }
             Report(L.F("Установка Steam {0}…", target));
             var update = new ProcessStartInfo(exe) { UseShellExecute = false };
             foreach (var arg in new[] { "-forcesteamupdate", "-forcepackagedownload", "-overridepackageurl", mirror.Url, "-exitsteam" }) update.ArgumentList.Add(arg);
             using (Process.Start(update)) { }
+            bootstrapperStarted = true;
             await Task.Delay(TimeSpan.FromSeconds(5), ct);
             await WaitForExitAsync(exe, TimeSpan.FromMinutes(20), ct);
             if (Running(exe)) throw new InvalidOperationException("Обновление Steam не завершилось за 20 минут. Подробности в logs\\bootstrap_log.txt.");
@@ -106,11 +118,10 @@ public static class SteamControl
         }
         finally
         {
-            foreach (var file in moved)
-                try { File.Move(Path.Combine(aside, file), Path.Combine(root, file), true); }
-                catch (Exception e) { JobService.Log("Не удалось вернуть {0}: {1}", file, e.Message); }
-            // A failed rollback must not silently re-enable updates that FST had blocked before.
-            if (!succeeded && hadFstBlock) try { SteamDowngrade.BlockUpdates(root); } catch (Exception e) { JobService.Log("Не удалось вернуть steam.cfg: {0}", e.Message); }
+            RecoverLoader(settings);
+            // A rollback that failed before Steam was touched must not silently re-enable updates FST had blocked.
+            // Once the updater ran, Steam may be half-installed and has to be able to repair itself, so updates stay on.
+            if (!succeeded && hadFstBlock && !bootstrapperStarted) try { SteamDowngrade.BlockUpdates(root); } catch (Exception e) { JobService.Log("Не удалось вернуть steam.cfg: {0}", e.Message); }
             End();
             if (stopped && File.Exists(exe) && !Running(exe)) try { Start(exe); } catch { }
         }

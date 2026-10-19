@@ -21,6 +21,8 @@ internal static class Program
             {
                 if(File.Exists(Path.Combine(settings.SteamRoot,"steam.exe")))SteamControl.EnsureDebugMarker(settings);
                 Startup.Set(!args.Contains("--no-startup"));
+                // The setup stops FST first, possibly mid-rollback: bring set-aside loader files back before checking for a loader.
+                SteamControl.RecoverLoader(settings);
                 // The setup waits 90 s for this process and the Steam restart may take 45 s, so the loader gets 20 s; the tray retries on start.
                 if(File.Exists(Path.Combine(settings.SteamRoot,"steam.exe")))
                     try{using var budget=new CancellationTokenSource(TimeSpan.FromSeconds(20));JobService.EnsureLoaderAsync(settings,budget.Token).GetAwaiter().GetResult();}
@@ -188,6 +190,7 @@ internal sealed class TrayContext : ApplicationContext
         if (File.Exists(Path.Combine(settings.SteamRoot, "steam.exe")))
             _ = Task.Run(async () =>
             {
+                SteamControl.RecoverLoader(settings);
                 try { if (await JobService.EnsureLoaderAsync(settings, cancellation.Token)) Notify(L.T("OpenSteamTool установлен. Перезапустите Steam, чтобы добавленные игры появились в библиотеке.")); }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return; }
                 catch (Exception e) { JobService.Log("Не удалось установить OpenSteamTool: {0}", e.Message); if (LuaLoader.Broken(settings.SteamRoot, JobService.LoaderStateFile)) JobService.Log(LuaLoader.MissingMessage); }

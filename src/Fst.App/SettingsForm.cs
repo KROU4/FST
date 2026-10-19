@@ -40,7 +40,8 @@ internal sealed class SettingsForm : FstWindow
                 // The build came from the tracker, so it is supported unless the fresh check below says otherwise.
                 JobService.UnsupportedSteamFiles=[];
                 await JobService.UnsupportedSteamWarningAsync(settings);
-                steamNote=JobService.UnsupportedSteamFiles.Length>0?L.T("OpenSteamTool не поддерживает эту версию Steam"):L.F(result.UpdatesBlocked?"Установлен Steam {0}, обновления отключены.":"Установлен Steam {0}; steam.cfg уже есть, обновления не отключены.",result.Version);
+                steamNote=LuaLoader.Broken(settings.SteamRoot,JobService.LoaderStateFile)?L.F("Steam {0} установлен, но Lua-загрузчик не на месте. Подробности в логах.",result.Version)
+                    :JobService.UnsupportedSteamFiles.Length>0?L.T("OpenSteamTool не поддерживает эту версию Steam"):L.F(result.UpdatesBlocked?"Установлен Steam {0}, обновления отключены.":"Установлен Steam {0}; steam.cfg уже есть, обновления не отключены.",result.Version);
             }
             catch(Exception e)
             {

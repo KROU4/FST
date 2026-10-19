@@ -63,6 +63,7 @@ public static class Localization
         ["Установлен Steam {0}; steam.cfg уже есть, обновления не отключены."]="Steam {0} installed; a steam.cfg already exists, updates were not disabled.",
         ["Не удалось вернуть steam.cfg: {0}"]="Could not restore steam.cfg: {0}",["Нет связи с сервером. Проверьте интернет и повторите."]="No connection to the server. Check the internet connection and try again.",
         ["FST уже запущен. Откатите Steam кнопкой в окне FST."]="FST is already running. Roll Steam back with the button in the FST window.",
+        ["Steam {0} установлен, но Lua-загрузчик не на месте. Подробности в логах."]="Steam {0} installed, but the Lua loader is missing. See the logs.",
         ["Архив OpenSteamTool превышает допустимый размер."]="The OpenSteamTool archive is too large.",["Контрольная сумма архива OpenSteamTool не совпадает."]="The OpenSteamTool archive checksum does not match."
     };
     public static string T(string text)
