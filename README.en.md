@@ -2,13 +2,13 @@
 
 FST is a Windows/Linux tray app that adds an **Add to library for free** button to Steam store pages. It downloads available Lua/manifest archives using your Ryuu account, validates and installs them for a compatible loader, then optionally restarts Steam.
 
-[Download v0.1.1](https://github.com/superhe11/FST/releases/tag/v0.1.1) · [Releases](https://github.com/superhe11/FST/releases) · [Русский](README.md)
+[Download v0.1.2](https://github.com/superhe11/FST/releases/tag/v0.1.2) · [Releases](https://github.com/superhe11/FST/releases) · [Русский](README.md)
 
 ## Downloads
 
 - Windows x64: **FST-Setup.exe**.
-- Arch x86_64: **fast-steam-tools-bin-0.1.1-1-x86_64.pkg.tar.zst**.
-- Linux per-user installer: **fst-0.1.1-linux-x86_64.tar.gz**.
+- Arch x86_64: **fast-steam-tools-bin-0.1.2-1-x86_64.pkg.tar.zst**.
+- Linux per-user installer: **fst-0.1.2-linux-x86_64.tar.gz**.
 - PKGBUILD and SHA256SUMS.txt are included in the release.
 
 The .NET runtime is bundled. Game files, manifests, account credentials and Steam loader binaries are not included; on Windows BetterSteamTools is downloaded on demand.
@@ -40,7 +40,7 @@ First install **SLSsteam + lumalinux**, following the [upstream desktop setup](h
 Download the package and run:
 
 ```bash
-sudo pacman -U ./fast-steam-tools-bin-0.1.1-1-x86_64.pkg.tar.zst
+sudo pacman -U ./fast-steam-tools-bin-0.1.2-1-x86_64.pkg.tar.zst
 fst
 ```
 
@@ -49,7 +49,7 @@ A running, unlocked Secret Service keyring is required to save Ryuu sign-in. `li
 Alternatively:
 
 ```bash
-tar -xzf fst-0.1.1-linux-x86_64.tar.gz
+tar -xzf fst-0.1.2-linux-x86_64.tar.gz
 cd fst-linux-x64
 bash install.sh
 ```
@@ -112,7 +112,7 @@ bash tools/Test-Linux-Package.sh
 
 Outputs are in `release/`. The Linux packager also requires tar, zstd, sha256sum and standard shell tools.
 
-v0.1.1 passed 114 offline core checks, 7 Windows integration checks and 32 Linux checks locally. Windows compilation, RU/EN Linux GUI rendering, package contents and checksums were verified. **Linux testing used WSL, not an actual Arch Steam client. Game downloading/launching on Arch has not been verified.**
+v0.1.2 passed 114 offline core checks, 7 Windows integration checks and 32 Linux checks locally. Windows compilation, RU/EN Linux GUI rendering, package contents and checksums were verified. **Linux testing used WSL, not an actual Arch Steam client. Game downloading/launching on Arch has not been verified.**
 
 On Windows, also run `dotnet run --project tests/Fst.Windows.Tests/Fst.Windows.Tests.csproj -c Release` to check loader directories, Lua installation/removal and the operation lock. `dotnet run --project tests/Fst.Tests/Fst.Tests.csproj -c Release -- --live-loader` downloads the pinned BetterSteamTools ZIP into an isolated sandbox without executing its DLLs, modifying Steam or consuming Ryuu quota. `dotnet run --project tests/Fst.Windows.Tests/Fst.Windows.Tests.csproj -c Release -- --verify-steam-root "A:\Steam"` checks the live tracker using copies of the installed Steam DLLs without a signature cache; the installed client is left unchanged.
 

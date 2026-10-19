@@ -4,7 +4,7 @@
 
 FST — утилита для Windows и Linux с кнопкой **«Бесплатно добавить в библиотеку»** на странице игры в Steam. Скачивает Lua и манифесты через ваш аккаунт Ryuu, устанавливает их для совместимого загрузчика и перезапускает Steam.
 
-[Скачать v0.1.1](https://github.com/superhe11/FST/releases/tag/v0.1.1) · [Все релизы](https://github.com/superhe11/FST/releases) · [English](README.en.md)
+[Скачать v0.1.2](https://github.com/superhe11/FST/releases/tag/v0.1.2) · [Все релизы](https://github.com/superhe11/FST/releases) · [English](README.en.md)
 
 <details>
 <summary>Интерфейс Linux</summary>
@@ -26,11 +26,11 @@ FST не содержит игры, манифесты, чужие ключи и
 
 ## Скачать
 
-Откройте [релиз v0.1.1](https://github.com/superhe11/FST/releases/tag/v0.1.1) и выберите файл:
+Откройте [релиз v0.1.2](https://github.com/superhe11/FST/releases/tag/v0.1.2) и выберите файл:
 
 - **Windows x64:** `FST-Setup.exe` — установщик.
-- **Arch Linux x86_64:** `fast-steam-tools-bin-0.1.1-1-x86_64.pkg.tar.zst` — пакет для pacman.
-- **Linux x86_64:** `fst-0.1.1-linux-x86_64.tar.gz` — архив с пользовательским установщиком.
+- **Arch Linux x86_64:** `fast-steam-tools-bin-0.1.2-1-x86_64.pkg.tar.zst` — пакет для pacman.
+- **Linux x86_64:** `fst-0.1.2-linux-x86_64.tar.gz` — архив с пользовательским установщиком.
 - `PKGBUILD` — сборка Arch-пакета из архива релиза; в AUR пакет пока не опубликован.
 - `SHA256SUMS.txt` — контрольные суммы скачанных файлов.
 
@@ -75,7 +75,7 @@ BetterSteamTools работает по сигнатурам, которые пу
 Скачайте Arch-пакет из релиза, откройте терминал в папке загрузки и выполните:
 
 ```bash
-sudo pacman -U ./fast-steam-tools-bin-0.1.1-1-x86_64.pkg.tar.zst
+sudo pacman -U ./fast-steam-tools-bin-0.1.2-1-x86_64.pkg.tar.zst
 fst
 ```
 
@@ -84,7 +84,7 @@ fst
 ### Вариант без системного пакета
 
 ```bash
-tar -xzf fst-0.1.1-linux-x86_64.tar.gz
+tar -xzf fst-0.1.2-linux-x86_64.tar.gz
 cd fst-linux-x64
 bash install.sh
 ```
@@ -171,7 +171,7 @@ dotnet run --project tests/Fst.Tests/Fst.Tests.csproj -c Release
 bash tools/Test-Linux-Package.sh
 ```
 
-Для v0.1.1 локально прошли **114 проверок ядра**, **7 Windows-проверок** и **32 Linux-проверки**. Проверены сборка Windows, запуск/отрисовка Linux GUI RU/EN, данные Arch-пакета и контрольные суммы. Linux-проверки выполнялись в Linux-окружении WSL, **не на настоящем Arch со Steam**. Скачивание и запуск игры на Arch пока не подтверждены.
+Для v0.1.2 локально прошли **114 проверок ядра**, **7 Windows-проверок** и **32 Linux-проверки**. Проверены сборка Windows, запуск/отрисовка Linux GUI RU/EN, данные Arch-пакета и контрольные суммы. Linux-проверки выполнялись в Linux-окружении WSL, **не на настоящем Arch со Steam**. Скачивание и запуск игры на Arch пока не подтверждены.
 
 Тесты по умолчанию не скачивают игры и не используют Ryuu. На Windows дополнительно запустите `dotnet run --project tests/Fst.Windows.Tests/Fst.Windows.Tests.csproj -c Release`: проверяются каталоги загрузчика, установка и удаление копий Lua, блокировка смены путей.
 
