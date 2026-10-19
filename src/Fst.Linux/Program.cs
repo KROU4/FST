@@ -2,6 +2,7 @@ using Avalonia;
 using Fst.App;
 
 namespace Fst.Linux;
+
 internal static class Program
 {
     private static FileStream? instance;

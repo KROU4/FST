@@ -3,6 +3,7 @@ using System.Text.Json;
 using Fst.Core;
 
 namespace Fst.App;
+
 public sealed record Job(string State, string Message);
 public sealed class JobService(Settings settings, RyuuSession session, Action<string> notify, Action connect)
 {

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 namespace Fst.App;
+
 internal sealed class ConnectForm : FstWindow
 {
     private readonly RyuuSession session;

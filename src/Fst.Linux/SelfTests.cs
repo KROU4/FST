@@ -5,6 +5,7 @@ using Fst.Core;
 using YamlDotNet.RepresentationModel;
 
 namespace Fst.Linux;
+
 internal static class SelfTests
 {
     public static int Run()
