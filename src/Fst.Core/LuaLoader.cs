@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Fst.Core;
 
@@ -32,13 +33,28 @@ public static class LuaLoader
         if (string.IsNullOrWhiteSpace(steamRoot)) return false;
         if (Find(steamRoot) == null) return true;
         var state = ReadState(stateFile);
-        if (state == null) return false;
-        // Any loader file FST does not own means another loader is installed: use it as is.
-        if (Markers.Any(m => File.Exists(Path.Combine(steamRoot, m)) && !Owned(state, Path.Combine(steamRoot, m)))) return false;
-        // A file FST installed has disappeared (for example, quarantined): proxies alone do not load Lua.
-        if (state.Files.Keys.Any(f => !File.Exists(Path.Combine(steamRoot, f)))) return true;
+        if (state == null || ForeignLoader(steamRoot, state)) return false;
+        if (MissingOwnedFiles(steamRoot, state)) return true;
         return state.Version != Version && Files.Any(f => Owned(state, Path.Combine(steamRoot, f)));
     }
+
+    /// <summary>True when Steam cannot load Lua: no loader at all, or a file of the FST-installed loader is missing.</summary>
+    public static bool Broken(string steamRoot, string stateFile)
+    {
+        if (Find(steamRoot) == null) return true;
+        var state = ReadState(stateFile);
+        return state != null && !ForeignLoader(steamRoot, state) && MissingOwnedFiles(steamRoot, state);
+    }
+
+    // Any loader file FST does not own means another loader is installed: use it as is.
+    private static bool ForeignLoader(string steamRoot, LoaderState state) => Markers.Any(m => File.Exists(Path.Combine(steamRoot, m)) && !Owned(state, Path.Combine(steamRoot, m)));
+    // A file FST installed has disappeared (for example, quarantined): proxies alone do not load Lua.
+    private static bool MissingOwnedFiles(string steamRoot, LoaderState state) => state.Files.Keys.Any(f => !File.Exists(Path.Combine(steamRoot, f)));
+
+    /// <summary>Structural check mirroring OpenSteamTool: an empty or entry-less cached TOML is rejected and does not count as signatures.</summary>
+    public static bool UsableTrackerToml(string channel, string text) => channel == "ipc"
+        ? Regex.IsMatch(text, @"(?m)^\s*\[[A-Za-z_]\w*\]\s*$") && Regex.IsMatch(text, @"(?m)^\s*interface_id\s*=\s*\d+")
+        : Regex.IsMatch(text, @"(?m)^\s*\[0x[0-9A-Fa-f]{1,8}\]\s*$") && Regex.IsMatch(text, @"(?m)^\s*(?:rva|sig)\s*=\s*""[^""]+""");
 
     public static async Task<string[]> DownloadAndInstallAsync(string steamRoot, string tempDirectory, string stateFile, HttpClient? httpClient = null, CancellationToken ct = default)
     {
@@ -148,7 +164,10 @@ public static class LuaLoader
                 if (!File.Exists(path) || unsupported.Contains(file)) continue;
                 string hash;
                 using (var stream = File.OpenRead(path)) hash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-                if (File.Exists(Path.Combine(steamRoot, "opensteamtool", channel, component, hash + ".toml"))) continue;
+                // OpenSteamTool falls back to this cache even when the tracker answers 404, but only if the TOML has entries.
+                var cache = Path.Combine(steamRoot, "opensteamtool", channel, component, hash + ".toml");
+                try { if (File.Exists(cache) && UsableTrackerToml(channel, File.ReadAllText(cache))) continue; }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
                 foreach (var mirror in TrackerMirrors)
                 {
                     HttpStatusCode? status = null;
