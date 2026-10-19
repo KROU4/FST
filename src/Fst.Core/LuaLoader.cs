@@ -19,9 +19,9 @@ public static class LuaLoader
     public const string ArchiveUrl = "https://github.com/OpenSteam001/OpenSteamTool/releases/download/1.4.8/OpenSteamTool-1.4.8-Release.zip";
     public const string ArchiveSha256 = "966654604d258d5d5383e72fec616df7957bf86f760c67eeb3d0e18cd882c710";
     public static readonly string[] Files = ["dwmapi.dll", "xinput1_4.dll", "OpenSteamTool.dll"];
-    // OpenSteamTool hooks Steam through signatures published per steamclient64.dll/steamui.dll build.
-    private static readonly (string Component, string File)[] Components = [("steamclient", "steamclient64.dll"), ("steamui", "steamui.dll")];
-    private static readonly string[] PatternMirrors = ["https://raw.githubusercontent.com/OpenSteam001/steam-monitor/pattern/{0}/{1}.toml", "https://cdn.jsdelivr.net/gh/OpenSteam001/steam-monitor@pattern/{0}/{1}.toml"];
+    // OpenSteamTool hooks Steam through signatures (pattern) and an IPC spec (ipc) published per steamclient64.dll/steamui.dll build.
+    private static readonly (string Channel, string Component, string File)[] Components = [("pattern", "steamclient", "steamclient64.dll"), ("pattern", "steamui", "steamui.dll"), ("ipc", "steamclient", "steamclient64.dll")];
+    private static readonly string[] TrackerMirrors = ["https://raw.githubusercontent.com/OpenSteam001/steam-monitor/{0}/{1}/{2}.toml", "https://cdn.jsdelivr.net/gh/OpenSteam001/steam-monitor@{0}/{1}/{2}.toml"];
 
     public static string? Find(string steamRoot) => string.IsNullOrWhiteSpace(steamRoot) ? null : Markers.FirstOrDefault(m => File.Exists(Path.Combine(steamRoot, m)));
     public static void Require(string steamRoot) { if (Find(steamRoot) == null) throw new InvalidOperationException(MissingMessage); }
@@ -142,19 +142,19 @@ public static class LuaLoader
         try
         {
             var unsupported = new List<string>();
-            foreach (var (component, file) in Components)
+            foreach (var (channel, component, file) in Components)
             {
                 var path = Path.Combine(steamRoot, file);
-                if (!File.Exists(path)) continue;
+                if (!File.Exists(path) || unsupported.Contains(file)) continue;
                 string hash;
                 using (var stream = File.OpenRead(path)) hash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-                if (File.Exists(Path.Combine(steamRoot, "opensteamtool", "pattern", component, hash + ".toml"))) continue;
-                foreach (var mirror in PatternMirrors)
+                if (File.Exists(Path.Combine(steamRoot, "opensteamtool", channel, component, hash + ".toml"))) continue;
+                foreach (var mirror in TrackerMirrors)
                 {
                     HttpStatusCode? status = null;
                     try
                     {
-                        using var request = new HttpRequestMessage(HttpMethod.Get, string.Format(mirror, component, hash));
+                        using var request = new HttpRequestMessage(HttpMethod.Get, string.Format(mirror, channel, component, hash));
                         request.Headers.UserAgent.ParseAdd("FST/0.1");
                         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, budget.Token);
                         status = response.StatusCode;
