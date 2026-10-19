@@ -73,7 +73,12 @@ public static class ProcessRunner
             result.ArgumentList.Add(arg);
         return result;
     }
-    public static async Task<(int Code, string Output)> CaptureAsync(string command, string[] args, string? input = null, int timeoutSeconds = 20)
+    public static async Task<(int Code, string Output)> CaptureAsync(
+    string command,
+    string[] args,
+    string? input = null,
+    int timeoutSeconds = 20,
+    CancellationToken cancellationToken = default)
     {
         var start = StartInfo(command, args);
         start.RedirectStandardOutput = true;
@@ -82,7 +87,8 @@ public static class ProcessRunner
         using var process = Process.Start(start) ?? throw new IOException(command);
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
         try
         {
             if (input != null)
@@ -130,6 +136,29 @@ public static class SecretStore
                 throw new IOException(L.T("Не удалось удалить ключ из хранилища."));
         }
         catch (System.ComponentModel.Win32Exception) { }
+    }
+    public static async Task<string> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await ProcessRunner.CaptureAsync(
+                "secret-tool",
+                ["lookup", "application", "fst", "service", "ryuu"],
+                timeoutSeconds: 20,
+                cancellationToken: cancellationToken);
+
+            return result.Code == 0
+                ? result.Output.TrimEnd('\r', '\n')
+                : "";
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return "";
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return "";
+        }
     }
 }
 

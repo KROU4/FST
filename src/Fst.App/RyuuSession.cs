@@ -16,6 +16,23 @@ public sealed class RyuuSession
         get => L.T(status); private set => status = value;
     }
     public RyuuSession(bool loadSaved = true) => key = loadSaved ? SecretStore.Read() : "";
+    public async Task LoadSavedAsync(CancellationToken ct = default)
+    {
+        await gate.WaitAsync(ct);
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(key))
+                return;
+
+            key = await SecretStore.ReadAsync(ct);
+            rejectedKey = null;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
     public string RequireKey() => Connected ? key : throw new RyuuAuthException();
     public void Reject(string usedKey)
     {

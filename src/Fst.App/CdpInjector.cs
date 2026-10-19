@@ -9,6 +9,8 @@ public sealed class CdpInjector(JobService jobs)
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(2) };
     private readonly Dictionary<string, ClientWebSocket> sockets = new();
     private int sequence;
+    private string? lastPollingError;
+    private readonly Dictionary<string, string> socketErrors = new();
     public int StoreTabs
     {
         get; private set;
@@ -27,6 +29,11 @@ public sealed class CdpInjector(JobService jobs)
             try
             {
                 using var list = JsonDocument.Parse(await http.GetStringAsync("http://127.0.0.1:8080/json", ct));
+                if (lastPollingError is not null)
+                {
+                    JobService.Log("Соединение с Steam CEF восстановлено.");
+                    lastPollingError = null;
+                }
                 Connected = true;
                 StoreTabs = 0;
                 var live = new HashSet<string>();
@@ -73,7 +80,19 @@ public sealed class CdpInjector(JobService jobs)
                             await Evaluate(socket, "window.__FST.responses[" + JsonSerializer.Serialize(req.Name) + "]=" + json, ct);
                         }
                     }
-                    catch (Exception e) when (e is not OperationCanceledException) { if (sockets.Remove(id, out var old)) old.Dispose(); }
+                    catch (Exception e) when (e is not OperationCanceledException)
+                    {
+                        if (sockets.Remove(id, out var old))
+                            old.Dispose();
+
+                        var error = $"{e.GetType().Name}: {e.Message}";
+
+                        if (!socketErrors.TryGetValue(id, out var previous) || previous != error)
+                        {
+                            JobService.Log("Ошибка WebSocket Steam CEF ({0}): {1}", id, error);
+                            socketErrors[id] = error;
+                        }
+                    }
                 }
                 foreach (var id in sockets.Keys.Where(k => !live.Contains(k)).ToArray())
                 {
@@ -82,7 +101,19 @@ public sealed class CdpInjector(JobService jobs)
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
-            catch { Connected = false; StoreTabs = 0; }
+            catch (Exception e)
+            {
+                Connected = false;
+                StoreTabs = 0;
+
+                var error = $"{e.GetType().Name}: {e.Message}";
+
+                if (lastPollingError != error)
+                {
+                    JobService.Log("Ошибка чтения Steam CEF: {0}", error);
+                    lastPollingError = error;
+                }
+            }
             await Task.Delay(400, ct);
         }
         foreach (var socket in sockets.Values)
