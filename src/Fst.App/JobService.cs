@@ -9,8 +9,8 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
 {
     private readonly ConcurrentDictionary<string, Job> jobs = new();
     private readonly SemaphoreSlim gate = new(1, 1);
-    private static int installing;
-    public static bool InstallationActive=>Volatile.Read(ref installing)!=0;
+    // True during a game install or a Steam rollback: both change Steam, so Lua removal and uninstall wait for them.
+    public static bool InstallationActive=>SteamControl.Busy;
     public bool IsBusy => gate.CurrentCount == 0;
     public object Dispatch(string method, JsonElement args) => method switch
     {
@@ -26,9 +26,8 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
     {
         ManifestInstaller.ValidateAppId(appId);
         var authKey = session.RequireKey();
-        if (SteamControl.DowngradeActive) throw new InvalidOperationException("Идёт откат Steam. Дождитесь завершения.");
-        if (!gate.Wait(0)) throw new InvalidOperationException("Установка уже идёт. Дождитесь завершения.");
-        Interlocked.Exchange(ref installing,1);
+        SteamControl.Begin(SteamControl.Install);
+        if (!gate.Wait(0)) { SteamControl.End(); throw new InvalidOperationException("Установка уже идёт. Дождитесь завершения."); }
         var id = Guid.NewGuid().ToString("N");
         jobs[id] = new("downloading", L.T("Скачивание из Ryuu…"));
         _ = Task.Run(async () =>
@@ -69,7 +68,7 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
                 var message = e is HttpRequestException or OperationCanceledException ? RyuuSession.SafeError(e) : L.T(e.Message);
                 jobs[id] = new("failed", message); Log("Ошибка установки: {0}", message); notify(message);
             }
-            finally { try { File.Delete(archive); } catch { } Interlocked.Exchange(ref installing,0);gate.Release(); }
+            finally { try { File.Delete(archive); } catch { } gate.Release();SteamControl.End(); }
         });
         return new { jobId = id };
     }

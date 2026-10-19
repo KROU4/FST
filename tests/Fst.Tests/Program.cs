@@ -232,6 +232,12 @@ using(var http=new HttpClient())
     using var bad=await http.GetAsync(mirror.Url+"..%2Fsecret");
     Check(bad.StatusCode==HttpStatusCode.NotFound&&mirror.Requests==4,"mirror rejects unsafe names");
 }
+{
+    var idleMirror=new PackageMirror(manifestOld,new HttpClient(new FakeHandler(_=>new HttpResponseMessage(HttpStatusCode.OK))));
+    using var silent=new System.Net.Sockets.TcpClient();await silent.ConnectAsync(System.Net.IPAddress.Loopback,new Uri(idleMirror.Url).Port);
+    var watch=System.Diagnostics.Stopwatch.StartNew();await idleMirror.DisposeAsync();
+    Check(watch.Elapsed<TimeSpan.FromSeconds(5),"mirror shuts down with an idle connection open");
+}
 var cfgSteam=Path.Combine(testRoot,"cfg-steam");Directory.CreateDirectory(cfgSteam);
 Check(SteamDowngrade.BlockUpdates(cfgSteam)&&SteamDowngrade.UpdatesBlocked(cfgSteam)&&SteamDowngrade.UpdatesBlockedByFst(cfgSteam),"Steam updates blocked by FST");
 Check(SteamDowngrade.AllowUpdates(cfgSteam)&&!File.Exists(SteamDowngrade.ConfigPath(cfgSteam)),"FST steam.cfg removed");

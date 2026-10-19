@@ -57,6 +57,12 @@ public static class Localization
         ["Трекер OpenSteamTool не сообщил поддерживаемую версию Steam."]="The OpenSteamTool tracker did not report a supported Steam build.",
         ["Повреждён список файлов Steam."]="The Steam file list is corrupted.",["Valve больше не раздаёт файлы этой версии Steam."]="Valve no longer serves the files of this Steam build.",
         ["Список файлов этой версии Steam не найден в архиве."]="The file list of this Steam build was not found in the archive.",
+        ["Steam участвует в бета-тесте. Отключите бета-версию в настройках Steam и повторите."]="Steam is enrolled in the beta. Leave the beta in Steam settings and try again.",
+        ["Обновление Steam не завершилось за 20 минут. Подробности в logs\\bootstrap_log.txt."]="The Steam update did not finish within 20 minutes. See logs\\bootstrap_log.txt.",
+        ["Steam откатан с {0} на {1}; steam.cfg уже есть, обновления не отключены."]="Steam rolled back from {0} to {1}; a steam.cfg already exists, updates were not disabled.",
+        ["Установлен Steam {0}; steam.cfg уже есть, обновления не отключены."]="Steam {0} installed; a steam.cfg already exists, updates were not disabled.",
+        ["Не удалось вернуть steam.cfg: {0}"]="Could not restore steam.cfg: {0}",["Нет связи с сервером. Проверьте интернет и повторите."]="No connection to the server. Check the internet connection and try again.",
+        ["FST уже запущен. Откатите Steam кнопкой в окне FST."]="FST is already running. Roll Steam back with the button in the FST window.",
         ["Архив OpenSteamTool превышает допустимый размер."]="The OpenSteamTool archive is too large.",["Контрольная сумма архива OpenSteamTool не совпадает."]="The OpenSteamTool archive checksum does not match."
     };
     public static string T(string text)

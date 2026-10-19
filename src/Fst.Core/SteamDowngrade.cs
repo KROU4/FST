@@ -123,6 +123,7 @@ public sealed class PackageMirror : IAsyncDisposable
     private readonly HttpClient client;
     private readonly string upstream;
     private readonly Task loop;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Task, byte> active = new();
     private int requests;
     public int Requests => Volatile.Read(ref requests);
     public string Url => "http://127.0.0.1:" + ((IPEndPoint)listener.LocalEndpoint).Port + "/";
@@ -143,7 +144,9 @@ public sealed class PackageMirror : IAsyncDisposable
             TcpClient connection;
             try { connection = await listener.AcceptTcpClientAsync(stop.Token); }
             catch (Exception e) when (e is OperationCanceledException or ObjectDisposedException or SocketException) { break; }
-            _ = ServeAsync(connection);
+            var task = ServeAsync(connection);
+            active[task] = 0;
+            _ = task.ContinueWith(t => active.TryRemove(t, out _), TaskScheduler.Default);
         }
     }
 
@@ -154,7 +157,12 @@ public sealed class PackageMirror : IAsyncDisposable
             try
             {
                 var stream = connection.GetStream();
-                var head = await ReadHeadAsync(stream);
+                string head;
+                using (var headBudget = CancellationTokenSource.CreateLinkedTokenSource(stop.Token))
+                {
+                    headBudget.CancelAfter(TimeSpan.FromSeconds(30));
+                    head = await ReadHeadAsync(stream, headBudget.Token);
+                }
                 var parts = head.Split(' ', 3);
                 if (parts.Length < 3) return;
                 Interlocked.Increment(ref requests);
@@ -173,17 +181,18 @@ public sealed class PackageMirror : IAsyncDisposable
                 await WriteHeadAsync(stream, (int)response.StatusCode, response.ReasonPhrase ?? "", response.Content.Headers.ContentLength);
                 if (method == "GET") await (await response.Content.ReadAsStreamAsync(stop.Token)).CopyToAsync(stream, stop.Token);
             }
-            catch (Exception e) when (e is IOException or SocketException or HttpRequestException or OperationCanceledException or InvalidDataException) { }
+            // A connection handler runs unobserved: any failure only ends this one transfer, and Steam retries or reports it.
+            catch (Exception) { }
         }
     }
 
-    private static async Task<string> ReadHeadAsync(NetworkStream stream)
+    private static async Task<string> ReadHeadAsync(NetworkStream stream, CancellationToken ct)
     {
         var buffer = new List<byte>();
         var one = new byte[1];
         while (buffer.Count < 16 * 1024)
         {
-            if (await stream.ReadAsync(one) == 0) break;
+            if (await stream.ReadAsync(one, ct) == 0) break;
             buffer.Add(one[0]);
             if (buffer.Count >= 4 && buffer[^4] == '\r' && buffer[^3] == '\n' && buffer[^2] == '\r' && buffer[^1] == '\n') return Encoding.ASCII.GetString(buffer.ToArray());
         }
@@ -201,6 +210,8 @@ public sealed class PackageMirror : IAsyncDisposable
         stop.Cancel();
         listener.Stop();
         try { await loop; } catch { }
+        // Let cancelled transfers finish before their token source and the shared HttpClient go away.
+        try { await Task.WhenAll(active.Keys); } catch { }
         stop.Dispose();
     }
 }

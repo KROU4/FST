@@ -36,11 +36,17 @@ internal sealed class SettingsForm : FstWindow
             steamAction.Enabled=restart.Enabled=false;
             try
             {
-                var version=await SteamControl.DowngradeAsync(settings,text=>BeginInvoke(()=>{steamNote=text;RefreshStatus();}));
-                steamNote=L.F("Установлен Steam {0}, обновления отключены.",version);
+                var result=await SteamControl.DowngradeAsync(settings,text=>{if(IsHandleCreated&&!IsDisposed)BeginInvoke(()=>{steamNote=text;RefreshStatus();});});
+                // The build came from the tracker, so it is supported unless the fresh check below says otherwise.
+                JobService.UnsupportedSteamFiles=[];
                 await JobService.UnsupportedSteamWarningAsync(settings);
+                steamNote=JobService.UnsupportedSteamFiles.Length>0?L.T("OpenSteamTool не поддерживает эту версию Steam"):L.F(result.UpdatesBlocked?"Установлен Steam {0}, обновления отключены.":"Установлен Steam {0}; steam.cfg уже есть, обновления не отключены.",result.Version);
             }
-            catch(Exception e){steamNote=L.T(e.Message);JobService.Log("Не удалось откатить Steam: {0}",e.Message);}
+            catch(Exception e)
+            {
+                steamNote=e is HttpRequestException or TaskCanceledException?L.T("Нет связи с сервером. Проверьте интернет и повторите."):L.T(e.Message);
+                JobService.Log("Не удалось откатить Steam: {0}",e.Message);
+            }
             finally{if(!IsDisposed){steamAction.Enabled=restart.Enabled=true;RefreshStatus();}}
         };
         var options=UiTheme.Card(new Rectangle(20,304,620,106));Controls.Add(options);
@@ -66,7 +72,7 @@ internal sealed class SettingsForm : FstWindow
         var blocked=!unsupported&&SteamDowngrade.UpdatesBlockedByFst(settings.SteamRoot);
         // Control.Visible reads false until the window is shown, so the layout uses its own flag.
         var showAction=unsupported||blocked||SteamControl.DowngradeActive;
-        steamAction.Visible=showAction;
+        steamAction.Visible=showAction;steamAction.Enabled=!SteamControl.DowngradeActive;
         steamAction.Text=L.T(blocked?"Вернуть обновления":"Откатить Steam");
         restartButton.Top=showAction?12:32;restartButton.Height=showAction?36:38;
         steamDetail.Text=steamNote.Length>0?steamNote:unsupported?L.T("OpenSteamTool не поддерживает эту версию Steam"):blocked?L.T("Обновления Steam отключены FST"):"";
