@@ -73,6 +73,7 @@ internal static class Program
                 var session = new RyuuSession();
                 session.VerifyAsync().GetAwaiter().GetResult();
                 var jobs = new JobService(settings,session,_=>{},()=>{});
+                if(args.Contains("--preview-unsupported"))JobService.UnsupportedSteamFiles=["steamclient64.dll","steamui.dll"];
                 var injector = new CdpInjector(jobs);
                 var output = Path.Combine(Settings.DataRoot,"ui-preview",L.Language);Directory.CreateDirectory(output);
                 using var preview = new SettingsForm(settings,injector,session,()=>{});
@@ -100,6 +101,13 @@ internal static class Program
                 if (args.Contains("--verify-ryuu")) session.VerifyAsync().GetAwaiter().GetResult();
                 var status = new { settings.SteamRoot, settings.LuaDirectory, settings.DepotDirectory, additionalLuaDirectories = settings.ActiveLuaDirectories(), steamExists = File.Exists(Path.Combine(settings.SteamRoot, "steam.exe")), luaLoader = LuaLoader.Find(settings.SteamRoot), source = "ryuu", hasSavedConnection = !string.IsNullOrEmpty(SecretStore.Read()), ryuuStatus = session.Status, settings.AutoUpdate, settings.MirrorManifests, settings.RestartAfterInstall };
                 File.WriteAllText(Path.Combine(Settings.DataRoot, "diagnostics.json"), JsonSerializer.Serialize(status, new JsonSerializerOptions { WriteIndented = true }));
+                return;
+            }
+            if (args.Contains("--rollback-steam"))
+            {
+                // Same rollback as the main window button, for diagnostics and scripted checks.
+                var version = SteamControl.DowngradeAsync(settings, text => JobService.Log("{0}", text)).GetAwaiter().GetResult();
+                File.WriteAllText(Path.Combine(Settings.DataRoot, "rollback-check.json"), JsonSerializer.Serialize(new { result = "PASS", version }));
                 return;
             }
             if (args.Contains("--setup"))
@@ -180,8 +188,8 @@ internal sealed class TrayContext : ApplicationContext
             {
                 try { if (await JobService.EnsureLoaderAsync(settings, cancellation.Token)) Notify(L.T("OpenSteamTool установлен. Перезапустите Steam, чтобы добавленные игры появились в библиотеке.")); }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return; }
-                catch (Exception e) { JobService.Log("Не удалось установить OpenSteamTool: {0}", e.Message); if (LuaLoader.Find(settings.SteamRoot) == null) JobService.Log(LuaLoader.MissingMessage); }
-                try { if (await JobService.UnsupportedSteamWarningAsync(settings, cancellation.Token) is { } warning) Notify(warning); }
+                catch (Exception e) { JobService.Log("Не удалось установить OpenSteamTool: {0}", e.Message); if (LuaLoader.Broken(settings.SteamRoot, JobService.LoaderStateFile)) JobService.Log(LuaLoader.MissingMessage); }
+                try { if (await JobService.UnsupportedSteamWarningAsync(settings, cancellation.Token) is { } warning) Notify(warning + " " + L.T("Откатить Steam можно в окне FST.")); }
                 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
             });
         if(showWindow)ShowSettings();

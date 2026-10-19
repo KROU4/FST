@@ -26,6 +26,7 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
     {
         ManifestInstaller.ValidateAppId(appId);
         var authKey = session.RequireKey();
+        if (SteamControl.DowngradeActive) throw new InvalidOperationException("Идёт откат Steam. Дождитесь завершения.");
         if (!gate.Wait(0)) throw new InvalidOperationException("Установка уже идёт. Дождитесь завершения.");
         Interlocked.Exchange(ref installing,1);
         var id = Guid.NewGuid().ToString("N");
@@ -41,12 +42,10 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
                 {
                     jobs[id] = new("installing", L.T("Установка Lua-загрузчика OpenSteamTool…"));
                     try { loaderInstalled = await EnsureLoaderAsync(settings); }
-                    catch (Exception e)
-                    {
-                        Log("Не удалось установить OpenSteamTool: {0}", e.Message);
-                        if (LuaLoader.Find(settings.SteamRoot) == null) throw new InvalidOperationException(LuaLoader.MissingMessage);
-                    }
+                    catch (Exception e) { Log("Не удалось установить OpenSteamTool: {0}", e.Message); }
                 }
+                // Leftover proxies without OpenSteamTool.dll do not load Lua either: stop before the Ryuu download.
+                if (LuaLoader.Broken(settings.SteamRoot, LoaderStateFile)) throw new InvalidOperationException(LuaLoader.MissingMessage);
                 jobs[id] = new("downloading", L.T("Скачивание из Ryuu…"));
                 using var client = new RyuuClient();
                 await client.DownloadAsync(appId, authKey, archive);
@@ -89,12 +88,15 @@ public sealed class JobService(Settings settings, RyuuSession session, Action<st
         }
         finally { loaderGate.Release(); }
     }
+    /// <summary>Steam DLLs found unsupported by the last compatibility check; the main window offers a Steam rollback while it is not empty.</summary>
+    public static volatile string[] UnsupportedSteamFiles = [];
     /// <summary>Logs and returns a warning when OpenSteamTool has no signatures for the installed Steam build yet.</summary>
     public static async Task<string?> UnsupportedSteamWarningAsync(Settings settings, CancellationToken ct = default)
     {
         string[] files;
         try { files = await LuaLoader.UnsupportedSteamFilesAsync(settings.SteamRoot, ct: ct); }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested) { return null; }
+        UnsupportedSteamFiles = files;
         if (files.Length == 0) return null;
         Log(LuaLoader.UnsupportedMessage, string.Join(", ", files));
         return L.F(LuaLoader.UnsupportedMessage, string.Join(", ", files));

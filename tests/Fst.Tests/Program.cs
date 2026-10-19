@@ -158,8 +158,16 @@ var trackerSteam=Path.Combine(testRoot,"tracker-steam");Directory.CreateDirector
 foreach(var f in new[]{"OpenSteamTool.dll","steamclient64.dll","steamui.dll"})File.WriteAllText(Path.Combine(trackerSteam,f),f);
 Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("/steamclient/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).SequenceEqual(["steamclient64.dll"]),"unsupported Steam build detected");
 Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(_=>throw new HttpRequestException("offline"))))).Length==0,"offline tracker is not reported as unsupported");
-var cachedPattern=Path.Combine(trackerSteam,"opensteamtool","pattern","steamclient",Sha(Path.Combine(trackerSteam,"steamclient64.dll")).ToLowerInvariant()+".toml");Directory.CreateDirectory(Path.GetDirectoryName(cachedPattern)!);File.WriteAllText(cachedPattern,"");
-Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("pattern/steamclient/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).Length==0,"cached signatures count as supported");
+const string patternToml="[0xD05E26A2]\nname = \"AddProtobufAsBinary\"\nrva = \"0x9CFE90\"\nsig = \"40 53 55 56\"\n";
+const string ipcToml="[IClientUser]\ninterface_id = 1\nvtable_rva = \"0x1301A60\"\n";
+Check(LuaLoader.UsableTrackerToml("pattern",patternToml)&&LuaLoader.UsableTrackerToml("ipc",ipcToml),"valid cached signatures accepted");
+Check(!LuaLoader.UsableTrackerToml("pattern","")&&!LuaLoader.UsableTrackerToml("ipc"," \n")&&!LuaLoader.UsableTrackerToml("pattern","[0x1]\nname = \"x\"\n")&&!LuaLoader.UsableTrackerToml("ipc",patternToml),"empty or entry-less cache rejected like OpenSteamTool");
+var cachedPattern=Path.Combine(trackerSteam,"opensteamtool","pattern","steamclient",Sha(Path.Combine(trackerSteam,"steamclient64.dll")).ToLowerInvariant()+".toml");Directory.CreateDirectory(Path.GetDirectoryName(cachedPattern)!);
+HttpClient PatternClient404()=>new(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("pattern/steamclient/")?HttpStatusCode.NotFound:HttpStatusCode.OK)));
+File.WriteAllText(cachedPattern,"");
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,PatternClient404())).SequenceEqual(["steamclient64.dll"]),"empty cached signatures do not hide an unsupported build");
+File.WriteAllText(cachedPattern,patternToml);
+Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,PatternClient404())).Length==0,"cached signatures count as supported");
 Check((await LuaLoader.UnsupportedSteamFilesAsync(trackerSteam,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(r.RequestUri!.AbsolutePath.Contains("/ipc/")?HttpStatusCode.NotFound:HttpStatusCode.OK))))).SequenceEqual(["steamclient64.dll"]),"missing IPC spec detected");
 Check((await LuaLoader.UnsupportedSteamFilesAsync(loaderSteam)).Length==0,"tracker is not queried without OpenSteamTool");
 var loaderState=Path.Combine(testRoot,"loader-state.json");
@@ -180,8 +188,65 @@ if(args.Contains("--live"))
     Check(liveFiles.Length==3&&LuaLoader.Find(loaderSteam)=="OpenSteamTool.dll","OpenSteamTool release verified and installed in sandbox");
     Check((await LuaLoader.DownloadAndInstallAsync(loaderSteam,Path.Combine(testRoot,"loader-temp"),loaderState)).Length==0&&!LuaLoader.NeedsInstall(loaderSteam,loaderState),"current loader is not reinstalled");
 }
+// A loader is broken when FST's OpenSteamTool.dll is gone but its proxies stayed; the job must stop before Ryuu.
+var brokenSteam=Path.Combine(testRoot,"broken-steam");Directory.CreateDirectory(brokenSteam);File.WriteAllText(Path.Combine(brokenSteam,"steam.exe"),"");
+var brokenState=Path.Combine(testRoot,"broken-state.json");LuaLoader.Install(v1,brokenSteam,brokenState,Sha(v1),"1.0");
+Check(!LuaLoader.Broken(brokenSteam,brokenState),"complete FST loader is not broken");
+File.Delete(Path.Combine(brokenSteam,"OpenSteamTool.dll"));
+Check(LuaLoader.Find(brokenSteam)!=null&&LuaLoader.Broken(brokenSteam,brokenState),"proxies without OpenSteamTool.dll reported as broken");
+File.WriteAllText(Path.Combine(brokenSteam,"hid.dll"),"MZ SteamTools");
+Check(!LuaLoader.Broken(brokenSteam,brokenState),"another loader next to FST leftovers is not reported as broken");
+Check(LuaLoader.Broken(Path.Combine(testRoot,"no-loader"),brokenState),"no loader is broken");
+// Steam rollback: tracker README, archived manifest lookup, loopback package mirror and steam.cfg ownership.
+const string manifestOld="\"win64\"\n{\n\t\"version\"\t\t\"1788652215\"\n\t\"bins_win64\"\n\t{\n\t\t\"file\"\t\t\"bins_win64.zip.aa\"\n\t\t\"zipvz\"\t\t\"bins_win64.zip.vz.bb_1\"\n\t}\n}\n";
+const string manifestNew="\"win64\"\n{\n\t\"version\"\t\t\"1791918634\"\n}\n";
+Check(SteamDowngrade.ManifestVersion(manifestOld)=="1788652215"&&SteamDowngrade.ManifestPackages(manifestOld).SequenceEqual(["bins_win64.zip.aa","bins_win64.zip.vz.bb_1"]),"client manifest parsed");
+Check(SteamDowngrade.StableFromReadme("| Channel | Version | Updated (UTC) |\n| --- | --- | --- |\n| Stable | 1788652215 | 2026-09-05 |\n| Beta | 1790380355 | x |")=="1788652215"&&SteamDowngrade.StableFromReadme("nothing")==null,"tracker stable build parsed");
+var packageSteam=Path.Combine(testRoot,"package-steam");Directory.CreateDirectory(Path.Combine(packageSteam,"package"));File.WriteAllText(Path.Combine(packageSteam,"package","steam_client_win64.manifest"),manifestNew);
+Check(SteamDowngrade.InstalledVersion(packageSteam)=="1791918634"&&SteamDowngrade.InstalledVersion(testRoot)==null,"installed Steam build read");
+Check(await SteamDowngrade.SupportedStableAsync(new HttpClient(new FakeHandler(r=>new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("| Stable | "+(r.RequestUri!.AbsolutePath.Contains("/ipc/")?"1788400362":"1788652215")+" | x |")})))=="1788400362","rollback target is covered by both signatures and IPC");
+HttpClient Archive(Func<string,HttpStatusCode> package)=>new(new FakeHandler(r=>
+{
+    var url=r.RequestUri!.ToString();
+    if(url.Contains("/cdx/"))return new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("[[\"timestamp\"],[\"20260901000000\"],[\"20261006145653\"],[\"20261014102820\"]]")};
+    if(url.Contains("20260901000000"))return new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(manifestOld.Replace("1788652215","1788291500"))};
+    if(url.Contains("20261006145653"))return new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(manifestOld)};
+    if(url.Contains("20261014102820"))return new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent(manifestNew)};
+    Check(r.Method==HttpMethod.Head&&url.StartsWith(SteamDowngrade.PackageCdn),"packages checked on Valve CDN");
+    return new HttpResponseMessage(package(url));
+}));
+Check(await SteamDowngrade.FindManifestAsync("1788652215",Archive(_=>HttpStatusCode.OK))==manifestOld,"archived manifest of the target build found");
+var gzipManifest=new MemoryStream();using(var gz=new GZipStream(gzipManifest,CompressionMode.Compress,true))gz.Write(Encoding.UTF8.GetBytes(manifestOld));
+Check(await SteamDowngrade.FindManifestAsync("1788652215",new HttpClient(new FakeHandler(r=>r.RequestUri!.ToString().Contains("/cdx/")?new HttpResponseMessage(HttpStatusCode.OK){Content=new StringContent("[[\"timestamp\"],[\"20261006145653\"]]")}:r.Method==HttpMethod.Head?new HttpResponseMessage(HttpStatusCode.OK):new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(gzipManifest.ToArray())})))==manifestOld,"gzip-replayed archived manifest decoded");
+try{await SteamDowngrade.FindManifestAsync("1788652215",Archive(u=>u.Contains(".vz.")?HttpStatusCode.NotFound:HttpStatusCode.OK));throw new Exception("Expected missing package");}
+catch(InvalidDataException){Check(true,"rollback refused when Valve no longer serves a package");}
+try{await SteamDowngrade.FindManifestAsync("1788500000",Archive(_=>HttpStatusCode.OK));throw new Exception("Expected unarchived build");}
+catch(InvalidDataException){Check(true,"unarchived build reported");}
+await using(var mirror=new PackageMirror(manifestOld,new HttpClient(new FakeHandler(r=>new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(Encoding.UTF8.GetBytes("pkg:"+r.RequestUri!.AbsolutePath.TrimStart('/')))})),"http://upstream.test/"))
+using(var http=new HttpClient())
+{
+    Check(await http.GetStringAsync(mirror.Url+"steam_client_win64")==manifestOld,"mirror serves the pinned manifest");
+    Check(await http.GetStringAsync(mirror.Url+"bins_win64.zip.aa?x=1")=="pkg:bins_win64.zip.aa","mirror streams packages from upstream");
+    using var head=await http.SendAsync(new HttpRequestMessage(HttpMethod.Head,mirror.Url+"bins_win64.zip.aa"));
+    Check(head.StatusCode==HttpStatusCode.OK,"mirror answers HEAD");
+    using var bad=await http.GetAsync(mirror.Url+"..%2Fsecret");
+    Check(bad.StatusCode==HttpStatusCode.NotFound&&mirror.Requests==4,"mirror rejects unsafe names");
+}
+var cfgSteam=Path.Combine(testRoot,"cfg-steam");Directory.CreateDirectory(cfgSteam);
+Check(SteamDowngrade.BlockUpdates(cfgSteam)&&SteamDowngrade.UpdatesBlocked(cfgSteam)&&SteamDowngrade.UpdatesBlockedByFst(cfgSteam),"Steam updates blocked by FST");
+Check(SteamDowngrade.AllowUpdates(cfgSteam)&&!File.Exists(SteamDowngrade.ConfigPath(cfgSteam)),"FST steam.cfg removed");
+File.WriteAllText(SteamDowngrade.ConfigPath(cfgSteam),"BootStrapperInhibitAll=enable\n# user\n");
+Check(!SteamDowngrade.BlockUpdates(cfgSteam)&&!SteamDowngrade.AllowUpdates(cfgSteam)&&File.ReadAllText(SteamDowngrade.ConfigPath(cfgSteam)).Contains("# user")&&SteamDowngrade.UpdatesBlocked(cfgSteam)&&!SteamDowngrade.UpdatesBlockedByFst(cfgSteam),"user steam.cfg left untouched");
+if(args.Contains("--live"))
+{
+    using var live=new HttpClient{Timeout=TimeSpan.FromMinutes(1)};
+    var stable=await SteamDowngrade.SupportedStableAsync(live);
+    Check(ulong.Parse(stable)>1700000000,"live tracker reports supported Steam "+stable);
+    Check(SteamDowngrade.ManifestVersion(await SteamDowngrade.FindManifestAsync(stable,live))==stable,"live archived manifest found and all packages on Valve CDN");
+}
 Localization.Language="en";
 Check(Localization.T(LuaLoader.MissingMessage).StartsWith("No Lua loader"),"missing loader message translated");
+Check(Localization.T("Откатить Steam")=="Roll back Steam"&&Localization.T("Трекер OpenSteamTool не сообщил поддерживаемую версию Steam.").StartsWith("The OpenSteamTool"),"rollback strings translated");
 Check(Localization.T("Подключить Ryuu")=="Connect Ryuu","English UI translation");
 Check(Localization.F("Удалено Lua: {0}",2)=="Lua scripts removed: 2","English structured log translation");
 Localization.Language="ru";

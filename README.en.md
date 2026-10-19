@@ -19,6 +19,8 @@ Requires Windows 10/11 x64 and Steam. Without a Lua loader Steam ignores `config
 
 OpenSteamTool relies on signatures published separately for every Steam build. Right after a Steam update they may be missing for a few days: Steam then shows OpenSteamTool error dialogs and added games stay hidden. FST checks this at startup and after adding a game and warns in a notification; the Lua files stay in place and the games appear once OpenSteamTool is updated.
 
+To avoid waiting, the Steam card in the main window offers **Roll back Steam**. FST takes the newest stable build covered by the signature tracker, finds its file list in the Wayback Machine, checks that Valve still serves every package, closes Steam and installs that build through Steam's own updater (packages come from Valve's CDN via a loopback address, and Steam verifies their hashes), then disables Steam updates with `steam.cfg`. **Allow updates** removes that `steam.cfg`; a steam.cfg written by someone else is left alone.
+
 1. Run FST-Setup.exe.
 2. Choose whether to start FST with Windows and click Install.
 3. Setup installs to `%LOCALAPPDATA%\FST\bin` and restarts detected Steam.

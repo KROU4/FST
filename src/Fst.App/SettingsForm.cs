@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Fst.Core;
 namespace Fst.App;
 
 internal sealed class SettingsForm : FstWindow
@@ -7,7 +8,8 @@ internal sealed class SettingsForm : FstWindow
     private readonly CdpInjector injector;
     private readonly RyuuSession session;
     private readonly Label ryuuTitle, ryuuDetail, steamTitle, steamDetail;
-    private readonly FstButton connectButton;
+    private readonly FstButton connectButton, restartButton, steamAction;
+    private string steamNote = "";
     public SettingsForm(Settings settings,CdpInjector injector,RyuuSession session,Action connect) : base("Fast Steam Tools",new Size(660,532))
     {
         this.settings=settings;this.injector=injector;this.session=session;
@@ -18,8 +20,29 @@ internal sealed class SettingsForm : FstWindow
         var steam=UiTheme.Card(new Rectangle(20,186,620,104));Controls.Add(steam);
         steamTitle=UiTheme.Label("Steam",new Rectangle(18,16,365,27),14,bold:true);steam.Controls.Add(steamTitle);
         steamDetail=UiTheme.Label(settings.SteamRoot,new Rectangle(18,55,365,32),9,muted:true);steam.Controls.Add(steamDetail);
-        var restart=UiTheme.Button("Перезапустить",new Rectangle(418,32,184,38));steam.Controls.Add(restart);
-        restart.Click+=async(_,_)=>{restart.Enabled=false;try{await SteamControl.RestartAsync(settings);}catch(Exception e){steamDetail.Text=L.T(e.Message);}finally{if(!IsDisposed)restart.Enabled=true;}};
+        var restart=restartButton=UiTheme.Button("Перезапустить",new Rectangle(418,32,184,38));steam.Controls.Add(restart);
+        restart.Click+=async(_,_)=>{restart.Enabled=false;try{await SteamControl.RestartAsync(settings);}catch(Exception e){steamNote=L.T(e.Message);}finally{if(!IsDisposed){restart.Enabled=true;RefreshStatus();}}};
+        // Shown only when OpenSteamTool does not support the installed Steam, or when FST has blocked Steam updates.
+        steamAction=UiTheme.Button("Откатить Steam",new Rectangle(418,56,184,36),true);steamAction.Visible=false;steam.Controls.Add(steamAction);
+        steamAction.Click+=async(_,_)=>
+        {
+            if(JobService.UnsupportedSteamFiles.Length==0)
+            {
+                try{SteamDowngrade.AllowUpdates(settings.SteamRoot);steamNote=L.T("Обновления Steam включены. Steam обновится при следующем запуске.");JobService.Log("Обновления Steam включены.");}
+                catch(Exception e){steamNote=L.T(e.Message);}
+                RefreshStatus();return;
+            }
+            if(MessageBox.Show(this,L.T("FST закроет Steam, установит последнюю версию, которую поддерживает OpenSteamTool, и отключит обновления Steam (файл steam.cfg). Вернуть обновления можно здесь же. Продолжить?"),"FST",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
+            steamAction.Enabled=restart.Enabled=false;
+            try
+            {
+                var version=await SteamControl.DowngradeAsync(settings,text=>BeginInvoke(()=>{steamNote=text;RefreshStatus();}));
+                steamNote=L.F("Установлен Steam {0}, обновления отключены.",version);
+                await JobService.UnsupportedSteamWarningAsync(settings);
+            }
+            catch(Exception e){steamNote=L.T(e.Message);JobService.Log("Не удалось откатить Steam: {0}",e.Message);}
+            finally{if(!IsDisposed){steamAction.Enabled=restart.Enabled=true;RefreshStatus();}}
+        };
         var options=UiTheme.Card(new Rectangle(20,304,620,106));Controls.Add(options);
         var startup=new FstCheckBox{Text="Запускать вместе с Windows",Checked=Startup.Enabled,Bounds=new Rectangle(18,18,580,28)};
         var autoRestart=new FstCheckBox{Text="Перезапускать Steam после добавления игры",Checked=settings.RestartAfterInstall,Bounds=new Rectangle(18,59,580,28)};
@@ -39,8 +62,15 @@ internal sealed class SettingsForm : FstWindow
         ryuuTitle.Top=session.Connected?(104-ryuuTitle.Height)/2:16;
         connectButton.Text=L.T(session.Connected?"Подключение":"Подключить");
         steamTitle.Text=L.T(injector.Connected?"Steam подключён":"Ожидание Steam");
-        steamDetail.Text="";
-        steamTitle.Top=(104-steamTitle.Height)/2;
+        var unsupported=JobService.UnsupportedSteamFiles.Length>0;
+        var blocked=!unsupported&&SteamDowngrade.UpdatesBlockedByFst(settings.SteamRoot);
+        // Control.Visible reads false until the window is shown, so the layout uses its own flag.
+        var showAction=unsupported||blocked||SteamControl.DowngradeActive;
+        steamAction.Visible=showAction;
+        steamAction.Text=L.T(blocked?"Вернуть обновления":"Откатить Steam");
+        restartButton.Top=showAction?12:32;restartButton.Height=showAction?36:38;
+        steamDetail.Text=steamNote.Length>0?steamNote:unsupported?L.T("OpenSteamTool не поддерживает эту версию Steam"):blocked?L.T("Обновления Steam отключены FST"):"";
+        steamTitle.Top=steamDetail.Text.Length>0?16:(104-steamTitle.Height)/2;
     }
 }
 internal sealed class PathsForm : FstWindow

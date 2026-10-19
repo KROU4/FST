@@ -41,6 +41,22 @@ public static class Localization
         ["OpenSteamTool установлен. Перезапустите Steam, чтобы добавленные игры появились в библиотеке."]="OpenSteamTool installed. Restart Steam so added games appear in the library.",
         ["Добавлено. Перезапустите Steam, чтобы игра появилась в библиотеке."]="Added. Restart Steam so the game appears in the library.",
         [LuaLoader.UnsupportedMessage]="OpenSteamTool does not support the installed Steam build yet ({0}): Steam shows OpenSteamTool errors, and added games will appear in the library only after an OpenSteamTool update.",
+        ["Идёт откат Steam. Дождитесь завершения."]="Steam rollback in progress. Please wait.",
+        ["Файл steam.cfg в папке Steam запрещает обновления. Удалите его и повторите."]="steam.cfg in the Steam folder blocks updates. Delete it and try again.",
+        ["Поиск версии Steam, которую поддерживает OpenSteamTool…"]="Looking up the Steam build OpenSteamTool supports…",["Поиск файлов Steam {0}…"]="Locating Steam {0} files…",
+        ["Закрытие Steam…"]="Closing Steam…",["Установка Steam {0}…"]="Installing Steam {0}…",
+        ["Steam не установил версию {0} (сейчас {1}). Подробности в logs\\bootstrap_log.txt."]="Steam did not install build {0} (now {1}). See logs\\bootstrap_log.txt.",
+        ["Steam откатан с {0} на {1}, обновления Steam отключены."]="Steam rolled back from {0} to {1}; Steam updates are disabled.",["Не удалось вернуть {0}: {1}"]="Could not restore {0}: {1}",
+        ["Steam не завершился за 45 секунд. Закройте Steam и повторите."]="Steam did not exit within 45 seconds. Close Steam and try again.",
+        ["Откатить Steam"]="Roll back Steam",["Вернуть обновления"]="Allow updates",
+        ["Обновления Steam включены. Steam обновится при следующем запуске."]="Steam updates enabled. Steam will update on its next start.",["Обновления Steam включены."]="Steam updates enabled.",
+        ["FST закроет Steam, установит последнюю версию, которую поддерживает OpenSteamTool, и отключит обновления Steam (файл steam.cfg). Вернуть обновления можно здесь же. Продолжить?"]="FST will close Steam, install the newest build OpenSteamTool supports and disable Steam updates (steam.cfg). You can allow updates again here. Continue?",
+        ["Установлен Steam {0}, обновления отключены."]="Steam {0} installed, updates disabled.",["Не удалось откатить Steam: {0}"]="Could not roll back Steam: {0}",
+        ["OpenSteamTool не поддерживает эту версию Steam"]="OpenSteamTool does not support this Steam build",["Обновления Steam отключены FST"]="Steam updates are disabled by FST",
+        ["Откатить Steam можно в окне FST."]="You can roll Steam back in the FST window.",
+        ["Трекер OpenSteamTool не сообщил поддерживаемую версию Steam."]="The OpenSteamTool tracker did not report a supported Steam build.",
+        ["Повреждён список файлов Steam."]="The Steam file list is corrupted.",["Valve больше не раздаёт файлы этой версии Steam."]="Valve no longer serves the files of this Steam build.",
+        ["Список файлов этой версии Steam не найден в архиве."]="The file list of this Steam build was not found in the archive.",
         ["Архив OpenSteamTool превышает допустимый размер."]="The OpenSteamTool archive is too large.",["Контрольная сумма архива OpenSteamTool не совпадает."]="The OpenSteamTool archive checksum does not match."
     };
     public static string T(string text)
